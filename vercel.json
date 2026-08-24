@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/gas",
+      "destination": "/api/gas"
+    }
+  ]
+}

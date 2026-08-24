@@ -964,22 +964,17 @@
       // ======================
       // CONFIG & API HELPER
       // ======================
-      // 🔗 URL Google Apps Script Web App /exec (Dán URL Web App mới của bạn vào đây)
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbyVw9bJ5DN3FS-MaRZVsPXWj40ch2b3XDZG4O1Kqh8K41o7w3QIIyLlithOJLaVVZgJww/exec";
+      // 🔗 URL Endpoint: Gọi qua Vercel Proxy /api/gas để triệt tiêu 100% CORS
+      const GAS_URL = "/api/gas";
 
-      // 🚀 Helper gọi REST API tới Google Apps Script
+      // 🚀 Helper gọi REST API tới Google Apps Script qua Proxy
       async function callGAS(action, params = {}) {
-        if (!GAS_URL || GAS_URL.includes("AKfycby...")) {
-          console.warn("Chưa cấu hình URL GAS_URL thực tế.");
-        }
-
         try {
           const payload = { action, ...params };
-          // BẮT BUỘC dùng Content-Type: text/plain;charset=utf-8 để tránh CORS OPTIONS preflight
           const response = await fetch(GAS_URL, {
             method: "POST",
             headers: {
-              "Content-Type": "text/plain;charset=utf-8"
+              "Content-Type": "application/json"
             },
             body: JSON.stringify(payload)
           });
