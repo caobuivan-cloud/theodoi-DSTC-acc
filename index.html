@@ -1530,6 +1530,11 @@
       // ADMIN LOGIC
       // ======================
       async function showAdminSection() {
+        if (!CURRENT_TOKEN) {
+          alert('Vui lòng đăng nhập bằng Email & OTP trước khi truy cập trang Quản lý phân quyền.');
+          showStep('step-email');
+          return;
+        }
         showStep('step-admin');
         if (ALL_POSSIBLE_TEAMS.length === 0) {
           await loadPossibleTeams();
@@ -1615,12 +1620,17 @@
         els.adminTeamCount.textContent = ADMIN_SELECTED_TEAMS.length;
       }
 
-      function toggleSelectAllAdminTeams() {
-        if (ADMIN_SELECTED_TEAMS.length === ALL_POSSIBLE_TEAMS.length) ADMIN_SELECTED_TEAMS = [];
-        else ADMIN_SELECTED_TEAMS = [...ALL_POSSIBLE_TEAMS];
+      function selectAllAdminTeams() {
+        ADMIN_SELECTED_TEAMS = [...ALL_POSSIBLE_TEAMS];
         renderAdminTeamList(els.adminTeamSearchInput.value);
       }
-      window.toggleSelectAllAdminTeams = toggleSelectAllAdminTeams;
+      window.selectAllAdminTeams = selectAllAdminTeams;
+
+      function clearAdminTeamSelection() {
+        ADMIN_SELECTED_TEAMS = [];
+        renderAdminTeamList(els.adminTeamSearchInput.value);
+      }
+      window.clearAdminTeamSelection = clearAdminTeamSelection;
 
       function confirmAdminTeamSelection() {
         updateAdminDisplayText();
@@ -1674,59 +1684,52 @@
               <th>Họ tên (C)</th>
               <th>Quyền (D)</th>
               <th>Teams (B)</th>
-              <th>Thao tác</th>
+              <th style="text-align:right">Thao tác</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody>
+            ${data.map(item => `
+              <tr>
+                <td><strong>${escapeHtml(item.email)}</strong></td>
+                <td>${escapeHtml(item.colC)}</td>
+                <td><span class="role-badge ${item.role === 'Admin' ? 'role-admin' : 'role-user'}">${escapeHtml(item.role)}</span></td>
+                <td>${escapeHtml(item.teams)}</td>
+                <td style="text-align:right">
+                  <button class="btn sm" onclick="editPermRow('${escapeHtml(item.email)}', '${escapeHtml(item.teams)}', '${escapeHtml(item.colC)}', '${escapeHtml(item.role)}')">Sửa</button>
+                  <button class="btn sm danger" onclick="handleDeletePermission('${escapeHtml(item.email)}')">Xóa</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
         `;
-        const tbody = table.querySelector('tbody');
-
-        data.forEach(item => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td><strong>${item.email}</strong></td>
-            <td>${item.colC || ''}</td>
-            <td><span class="badge badge-${item.role.toLowerCase()}">${item.role}</span></td>
-            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.teams}">${item.teams || ''}</td>
-            <td class="perm-btn-group">
-              <button class="btn sm ghost btn-edit-perm">Sửa</button>
-              <button class="btn sm danger" onclick='handleDeletePermission("${item.email}")'>Xóa</button>
-            </td>
-          `;
-          tr.querySelector('.btn-edit-perm').onclick = () => editPerm(item);
-          tbody.appendChild(tr);
-        });
-
         wrap.appendChild(table);
         container.innerHTML = '';
         container.appendChild(wrap);
       }
 
-      window.editPerm = function (item) {
-        document.getElementById('p-email').value = item.email;
-        document.getElementById('p-colC').value = item.colC || '';
-        document.getElementById('p-role').value = item.role || 'User';
+      function editPermRow(email, teams, colC, role) {
+        document.getElementById('p-email').value = email;
+        document.getElementById('p-colC').value = colC;
+        document.getElementById('p-role').value = role;
 
-        // Cập nhật SELECTED_TEAMS cho Admin
-        ADMIN_SELECTED_TEAMS = (item.teams || '').split(';').map(t => t.trim()).filter(t => t);
+        if (teams) {
+          ADMIN_SELECTED_TEAMS = teams.split(';').map(t => t.trim()).filter(t => t);
+        } else {
+          ADMIN_SELECTED_TEAMS = [];
+        }
         updateAdminDisplayText();
-
-        document.getElementById('form-title').textContent = '📝 Cập nhật thông tin: ' + item.email;
-        document.getElementById('p-email').readOnly = true;
-        document.getElementById('p-email').style.background = '#f1f5f9';
-      };
+        document.getElementById('form-title').textContent = `Cập nhật thông tin: ${email}`;
+        window.scrollTo({ top: document.getElementById('perm-form').offsetTop - 20, behavior: 'smooth' });
+      }
+      window.editPermRow = editPermRow;
 
       function resetPermForm() {
         document.getElementById('p-email').value = '';
-        document.getElementById('p-email').readOnly = false;
-        document.getElementById('p-email').style.background = '';
         document.getElementById('p-colC').value = '';
         document.getElementById('p-role').value = 'User';
-        document.getElementById('form-title').textContent = 'Thêm mới / Cập nhật quyền';
-
         ADMIN_SELECTED_TEAMS = [];
         updateAdminDisplayText();
-
+        document.getElementById('form-title').textContent = 'Thêm mới / Cập nhật quyền';
         hideStatus(document.getElementById('perm-status'));
       }
       window.resetPermForm = resetPermForm;
@@ -1734,6 +1737,12 @@
       async function handleSavePermission() {
         const btn = document.getElementById('save-perm-btn');
         const statusEl = document.getElementById('perm-status');
+
+        if (!CURRENT_TOKEN) {
+          showStatus(statusEl, 'error', 'Bạn chưa đăng nhập. Vui lòng xác thực Email & OTP trước khi thực hiện thao tác này.');
+          return;
+        }
+
         const pData = {
           email: document.getElementById('p-email').value.trim(),
           colC: document.getElementById('p-colC').value.trim(),
@@ -1766,6 +1775,12 @@
       window.handleSavePermission = handleSavePermission;
 
       async function handleDeletePermission(email) {
+        if (!CURRENT_TOKEN) {
+          alert('Bạn chưa đăng nhập. Vui lòng xác thực Email & OTP trước.');
+          showStep('step-email');
+          return;
+        }
+
         if (!confirm(`Bạn có chắc muốn xóa quyền của ${email}?`)) return;
 
         try {
@@ -1787,6 +1802,7 @@
       // ======================
       document.addEventListener('DOMContentLoaded', () => {
         console.log('✅ Web App loaded. API Endpoint:', GAS_URL);
+        showStep('step-email');
       });
 
       document.addEventListener('keypress', e => {

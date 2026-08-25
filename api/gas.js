@@ -22,11 +22,18 @@ export default async function handler(req, res) {
     try {
       const data = JSON.parse(text);
       return res.status(200).json(data);
-    } catch (e) {
-      return res.status(200).send(text);
+    } catch (parseErr) {
+      console.warn('[Vercel GAS Proxy Non-JSON Response]:', text.slice(0, 300));
+      return res.status(200).json({
+        success: false,
+        error: "Máy chủ Google Apps Script đang khởi động lại hoặc phản hồi không đúng định dạng. Vui lòng thử lại sau vài giây."
+      });
     }
   } catch (err) {
     console.error('[Vercel GAS Proxy Error]:', err);
-    return res.status(500).json({ success: false, error: 'Lỗi kết nối tới máy chủ Google Apps Script: ' + (err.message || err.toString()) });
+    return res.status(500).json({
+      success: false,
+      error: 'Lỗi kết nối tới máy chủ Google Apps Script: ' + (err.message || err.toString())
+    });
   }
 }
