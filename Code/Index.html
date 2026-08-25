@@ -391,6 +391,46 @@
       gap: 6px;
     }
 
+    /* Bảng phân quyền: tránh chuỗi Teams dài làm tràn và che các cột giữa. */
+    .permission-table {
+      width: 100%;
+      min-width: 900px;
+      table-layout: fixed;
+    }
+
+    .permission-table th,
+    .permission-table td {
+      white-space: normal;
+      vertical-align: top;
+    }
+
+    .permission-table th:nth-child(1) { width: 22%; }
+    .permission-table th:nth-child(2) { width: 18%; }
+    .permission-table th:nth-child(3) { width: 10%; }
+    .permission-table th:nth-child(4) { width: auto; }
+    .permission-table th:nth-child(5) { width: 120px; }
+
+    .permission-table th:first-child,
+    .permission-table td:first-child {
+      position: static;
+      background: inherit;
+    }
+
+    .permission-table td:nth-child(1),
+    .permission-table td:nth-child(2),
+    .permission-table td:nth-child(4) {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .permission-table td:last-child {
+      white-space: nowrap;
+    }
+
+    .permission-table td:last-child .btn + .btn {
+      margin-left: 4px;
+    }
+
     .btn.sm {
       padding: 6px 10px;
       font-size: 12px;
@@ -1673,6 +1713,7 @@
         const wrap = document.createElement('div');
         wrap.className = 'table-wrap';
         const table = document.createElement('table');
+        table.className = 'permission-table';
         table.innerHTML = `
           <thead>
             <tr>
