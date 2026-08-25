@@ -1,0 +1,1811 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tra cứu DSTC Account — Admicro (OTP)</title>
+  <!-- 🔑 Thêm SheetJS CDN để xuất Excel -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f7fbff;
+      --card: #ffffff;
+      --primary: #2563eb;
+      --primary-600: #1e40af;
+      --muted: #64748b;
+      --border: #e6eefc;
+      --success: #0f5132;
+      --success-bg: #e6f4ea;
+      --danger: #c5221f;
+      --danger-bg: #fff0f0;
+      --radius: 10px;
+      --glass: rgba(255, 255, 255, 0.6);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(180deg, #f7fbff 0%, #f2f8ff 100%);
+      color: #0f172a;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 30px rgba(17, 24, 39, 0.06);
+      overflow: hidden;
+    }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 24px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-600));
+      color: white;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .hero p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.95;
+    }
+
+    .content {
+      padding: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .input,
+    select,
+    .btn {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+    }
+
+    .input:focus,
+    select:focus,
+    .btn:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+      border-color: var(--primary);
+    }
+
+    .input,
+    select {
+      width: 100%;
+    }
+
+    .muted {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn.ghost {
+      background: #f1f5f9;
+      color: #111;
+      border: 1px solid #e6eefc;
+      min-width: 0;
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+
+    .btn.outline {
+      background: transparent;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .status.success {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(31, 180, 120, 0.12);
+    }
+
+    .status.error {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(197, 66, 66, 0.08);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 450px;
+      padding: 24px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+
+    .modal h2 {
+      margin: 0 0 16px;
+      font-size: 20px;
+      color: #1e293b;
+    }
+
+    .modal p {
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: #f1f5f9;
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .step {
+      display: none;
+    }
+
+    .step.active {
+      display: block;
+    }
+
+    /* Date range layout */
+    .row.date-range-flex {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      flex-wrap: nowrap;
+      margin-top: 8px;
+    }
+
+    .date-block {
+      display: flex;
+      flex-direction: column;
+      min-width: 80px;
+      max-width: 120px;
+      flex: 0 0 90px;
+    }
+
+    .search-btn-block {
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 90px;
+      min-width: 80px;
+      max-width: 120px;
+      align-self: flex-end;
+    }
+
+    #search-btn {
+      width: 100%;
+      font-size: 14px;
+      padding: 8px 0;
+    }
+
+    #search-box {
+      margin-top: 14px;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    #result-search {
+      min-width: 220px;
+      flex: 1 1 220px;
+      max-width: 300px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+    }
+
+    #search-box .btn.ghost {
+      min-width: 0;
+      width: auto;
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+
+    .table-wrap {
+      margin-top: 18px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: auto;
+      background: linear-gradient(0deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6));
+    }
+
+    table {
+      width: 100%;
+      min-width: 820px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid #f3f7fb;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #fbfdff;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    tbody tr:nth-child(odd) td {
+      background: #fcfeff;
+    }
+
+    tbody tr:hover td {
+      background: #f7fbff;
+    }
+
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92));
+      z-index: 4;
+    }
+
+    .loading-center {
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    @media (max-width: 880px) {
+      .row.date-range-flex {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .date-block,
+      .search-btn-block {
+        max-width: 100%;
+        width: 100%;
+        flex: 1 1 100%;
+      }
+
+      #result-search {
+        min-width: 0;
+        flex: 1;
+      }
+    }
+
+    /* Admin Styles */
+    .admin-only {
+      display: none;
+      background: #fffbeb;
+      border: 1px dashed #f59e0b;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .admin-only.active {
+      display: block;
+    }
+
+    .perm-table-wrap {
+      margin-top: 16px;
+      overflow-x: auto;
+    }
+
+    .perm-btn-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn.sm {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+
+    .btn.danger {
+      background: var(--danger);
+    }
+
+    .btn.success {
+      background: var(--success);
+    }
+
+    .badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    .badge-admin {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge-user {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    #perm-form {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    /* Team Selector Styles */
+    .team-selector-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .team-selector-display {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      font-size: 15px;
+      transition: all 0.2s ease;
+    }
+
+    .team-selector-display:hover {
+      border-color: var(--primary);
+      background: #f8fafc;
+    }
+
+    .team-selector-display:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+      border-color: var(--primary);
+    }
+
+    .team-selector-display .selected-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #374151;
+    }
+
+    .team-selector-display .selected-text.placeholder {
+      color: var(--muted);
+    }
+
+    .team-selector-display .expand-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .team-selector-display .expand-btn:hover {
+      background: var(--primary-600);
+    }
+
+    .team-selector-display .arrow-icon {
+      transition: transform 0.2s ease;
+    }
+
+    /* Team Modal Overlay */
+    .team-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .team-modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .team-modal {
+      background: white;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 480px;
+      max-height: 80vh;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      animation: modalSlideIn 0.3s ease;
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .team-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, var(--primary), var(--primary-600));
+      border-radius: 16px 16px 0 0;
+      color: white;
+    }
+
+    .team-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .team-modal-close {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      cursor: pointer;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+    }
+
+    .team-modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .team-modal-body {
+      padding: 16px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .team-search-box {
+      margin-bottom: 16px;
+    }
+
+    .team-search-box input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    .team-search-box input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .team-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .team-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: white;
+    }
+
+    .team-item:hover {
+      background: #f8fafc;
+      border-color: var(--primary);
+    }
+
+    .team-item.selected {
+      background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%);
+      border-color: var(--primary);
+    }
+
+    .team-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .team-item label {
+      flex: 1;
+      cursor: pointer;
+      font-size: 15px;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    .team-modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+      border-radius: 0 0 16px 16px;
+    }
+
+    .team-modal-footer .selection-info {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .team-modal-footer .selection-info strong {
+      color: var(--primary);
+    }
+
+    .team-modal-footer .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .select-all-link {
+      color: var(--primary);
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: 8px;
+    }
+
+    .select-all-link:hover {
+      color: var(--primary-600);
+    }
+
+    .team-empty-state {
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+    }
+
+    .team-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: white;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="hero">
+        <div style="display:flex;align-items:center;gap:12px">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 2L3 5v6c0 5 3.8 9.8 9 11 5.2-1.2 9-6 9-11V5l-9-3z" fill="rgba(255,255,255,0.18)" />
+            <path d="M11 10h2v6h-2zM11 7h2v1h-2z" fill="white" />
+          </svg>
+        </div>
+        <div>
+          <h1>Tra cứu DSTC Account— Admicro</h1>
+          <p>Xác thực qua email & OTP để truy cập dữ liệu team được cấp quyền.</p>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Step 1: Nhập email -->
+        <div id="step-email" class="step active">
+          <h2>🔐 Xác thực tài khoản</h2>
+          <p>Vui lòng nhập email công ty của bạn để nhận mã OTP.</p>
+          <div>
+            <label for="auth-email">Email</label>
+            <input id="auth-email" class="input" type="email" placeholder="Ví dụ: user@admicro.vn" autocomplete="off" />
+            <div id="email-status" class="status hidden" role="status" aria-live="polite"></div>
+          </div>
+          <div class="controls" style="margin-top:20px">
+            <button id="send-otp-btn" class="btn">Gửi mã OTP</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Nhập OTP -->
+        <div id="step-otp" class="step">
+          <h2>🔢 Nhập mã OTP</h2>
+          <p>Mã OTP đã được gửi đến <strong id="otp-email-display"></strong>. Mã có hiệu lực trong <span
+              id="countdown">120</span> giây.</p>
+          <div>
+            <label for="auth-otp">Mã OTP (6 chữ số)</label>
+            <input id="auth-otp" class="input" type="text" inputmode="numeric" maxlength="6" placeholder="123456"
+              autocomplete="off" />
+            <div id="otp-status" class="status hidden" role="status" aria-live="polite"></div>
+          </div>
+          <div class="controls" style="margin-top:20px">
+            <button id="verify-otp-btn" class="btn">Xác minh OTP</button>
+            <button id="back-to-email" class="btn ghost">← Quay lại</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Chọn team & tra cứu -->
+        <div id="step-query" class="step">
+          <div id="admin-entrance" class="admin-only" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>🛡️ Bạn đang ở quyền <strong>Quản trị viên</strong></span>
+              <button class="btn sm" onclick="showAdminSection()">⚙️ Quản lý phân quyền</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <div style="flex:1;min-width:220px">
+              <label for="type">1. Loại tra cứu</label>
+              <select id="type" class="input">
+                <option value="">-- Chọn --</option>
+                <option value="ca_nhan">Chi tiết</option>
+                <option value="team">Tổng team</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:220px">
+              <label>2. Chọn team</label>
+              <div class="team-selector-wrapper">
+                <div id="team-selector-display" class="team-selector-display" tabindex="0" onclick="openTeamModal()"
+                  onkeydown="if(event.key==='Enter'||event.key===' ')openTeamModal()">
+                  <span id="team-selected-text" class="selected-text placeholder">-- Chọn team --</span>
+                  <span class="expand-btn">
+                    <svg class="arrow-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    Mở rộng
+                  </span>
+                </div>
+              </div>
+              <div id="team-status" class="status hidden" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <div id="date-range" class="hidden" style="margin-top:16px">
+            <label>3. Khoảng thời gian</label>
+            <div class="row date-range-flex">
+              <div class="date-block">
+                <label for="from-quarter" class="muted">Từ Quý</label>
+                <select id="from-quarter" class="input">
+                  <option value="1">Q1</option>
+                  <option value="2">Q2</option>
+                  <option value="3">Q3</option>
+                  <option value="4">Q4</option>
+                </select>
+              </div>
+              <div class="date-block">
+                <label for="from-year" class="muted">Năm</label>
+                <input id="from-year" type="number" min="2020" value="2024" class="input" />
+              </div>
+              <div class="date-block">
+                <label for="to-quarter" class="muted">Đến Quý</label>
+                <select id="to-quarter" class="input">
+                  <option value="1">Q1</option>
+                  <option value="2">Q2</option>
+                  <option value="3">Q3</option>
+                  <option value="4">Q4</option>
+                </select>
+              </div>
+              <div class="date-block">
+                <label for="to-year" class="muted">Năm</label>
+                <input id="to-year" type="number" min="2020" value="2024" class="input" />
+              </div>
+              <div class="search-btn-block">
+                <button id="search-btn" class="btn" disabled>🔍 Tra cứu</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="search-box" class="hidden" style="margin-top:14px">
+            <label for="result-search">🔎 Tìm trong kết quả</label>
+            <div class="search-row">
+              <input id="result-search" class="search-input" placeholder="Gõ từ khóa (tên, mã, số tiền...)" />
+              <button class="btn ghost" onclick="clearSearch()">Xóa</button>
+            </div>
+          </div>
+
+          <div id="results" style="margin-top:14px"></div>
+        </div>
+
+        <!-- Step Admin: Quản lý phân quyền -->
+        <div id="step-admin" class="step">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>⚙️ Quản lý phân quyền</h2>
+            <button class="btn ghost sm" onclick="showStep('step-query')">← Quay lại tra cứu</button>
+          </div>
+
+          <!-- Form Thêm/Sửa -->
+          <div id="perm-form">
+            <h3 id="form-title" style="margin-top:0; font-size: 16px;">Thêm mới / Cập nhật quyền</h3>
+            <div class="form-grid">
+              <div>
+                <label for="p-email">Email (A)</label>
+                <input id="p-email" class="input" type="email" placeholder="user@admicro.vn">
+              </div>
+              <div>
+                <label for="p-colC">Họ tên / Ghi chú (C)</label>
+                <input id="p-colC" class="input" type="text" placeholder="Nguyễn Văn A">
+              </div>
+              <div>
+                <label for="p-role">Quyền (D)</label>
+                <select id="p-role" class="input">
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <label>Team được xem (B)</label>
+                <div class="team-selector-wrapper">
+                  <div id="admin-team-selector-display" class="team-selector-display" tabindex="0"
+                    onclick="openAdminTeamModal()"
+                    onkeydown="if(event.key==='Enter'||event.key===' ')openAdminTeamModal()">
+                    <span id="admin-team-selected-text" class="selected-text placeholder">-- Chọn team --</span>
+                    <span class="expand-btn">
+                      <svg class="arrow-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                      Mở rộng
+                    </span>
+                  </div>
+                </div>
+                <p class="muted" style="margin-top:4px">Chọn các team mà email này được phép tra cứu.</p>
+              </div>
+            </div>
+            <div class="controls" style="margin-top:12px">
+              <button id="save-perm-btn" class="btn success" onclick="handleSavePermission()">Lưu thông tin</button>
+              <button class="btn ghost" onclick="resetPermForm()">Hủy</button>
+            </div>
+            <div id="perm-status" class="status hidden"></div>
+          </div>
+
+          <!-- Danh sách hiện tại -->
+          <div class="perm-table-wrap">
+            <h3 style="font-size: 16px;">Danh sách người dùng</h3>
+            <div id="perm-list-container">
+              <div class="loading-center">Đang tải danh sách...</div>
+            </div>
+          </div><!-- end step-admin -->
+        </div><!-- end content -->
+      </div><!-- end card -->
+    </div><!-- end wrap -->
+
+    <p style="font-size:13px;color:var(--muted);margin-top:10px;text-align:center">
+      Hệ thống tra cứu DSTC — Xác thực 2 bước bằng email & OTP.
+    </p>
+
+    <!-- Team Selection Modal -->
+    <div id="team-modal-overlay" class="team-modal-overlay">
+      <div class="team-modal">
+        <div class="team-modal-header">
+          <h3>📋 Chọn team</h3>
+          <button class="team-modal-close" onclick="closeTeamModal()">&times;</button>
+        </div>
+        <div class="team-modal-body">
+          <div class="team-search-box">
+            <input type="text" id="team-search-input" placeholder="🔍 Tìm kiếm team..." oninput="filterTeamList()">
+          </div>
+          <div class="team-list" id="team-list-container">
+            <!-- Team checkboxes will be rendered here -->
+          </div>
+        </div>
+        <div class="team-modal-footer">
+          <div class="selection-info">
+            <span>Đã chọn: <strong id="team-count">0</strong> team</span>
+            <span class="select-all-link" onclick="toggleSelectAllTeams()">Chọn tất cả</span>
+          </div>
+          <div class="btn-group">
+            <button class="btn ghost" onclick="closeTeamModal()">Hủy</button>
+            <button class="btn" onclick="confirmTeamSelection()">✓ Xác nhận</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Team Selection Modal -->
+    <div id="admin-team-modal-overlay" class="team-modal-overlay">
+      <div class="team-modal">
+        <div class="team-modal-header">
+          <h3>📋 Chọn team được xem</h3>
+          <button class="team-modal-close" onclick="closeAdminTeamModal()">&times;</button>
+        </div>
+        <div class="team-modal-body">
+          <div class="team-search-box">
+            <input type="text" id="admin-team-search-input" placeholder="🔍 Tìm kiếm team..."
+              oninput="filterAdminTeamList()">
+          </div>
+          <div class="team-list" id="admin-team-list-container">
+            <!-- Team checkboxes will be rendered here -->
+          </div>
+        </div>
+        <div class="team-modal-footer">
+          <div class="selection-info">
+            <span>Đã chọn: <strong id="admin-team-count">0</strong> team</span>
+            <span class="select-all-link" onclick="toggleSelectAllAdminTeams()">Chọn tất cả</span>
+          </div>
+          <div class="btn-group">
+            <button class="btn ghost" onclick="closeAdminTeamModal()">Hủy</button>
+            <button class="btn" onclick="confirmAdminTeamSelection()">✓ Xác nhận</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ======================
+      // CONFIG & API HELPER
+      // ======================
+      // Bản fallback được HtmlService phục vụ nên gọi server bằng google.script.run.
+      // Không fetch ngược Web App /exec từ iframe Apps Script vì Google có thể trả HTML OAuth/wrapper.
+      const GAS_URL = "google.script.run";
+
+      function callGAS(action, params = {}) {
+        return new Promise((resolve, reject) => {
+          const runner = google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject);
+
+          switch (action) {
+            case 'sendOtp':
+              runner.sendOtp(params.email);
+              break;
+            case 'verifyOtp':
+              runner.verifyOtp(params.email, params.otp);
+              break;
+            case 'getFilteredData':
+              runner.getFilteredData(params);
+              break;
+            case 'getAllPossibleTeams':
+              runner.getAllPossibleTeams(params.token);
+              break;
+            case 'getPermissionsList':
+              runner.getPermissionsList(params.token);
+              break;
+            case 'savePermission':
+              runner.savePermission(params.token, params.pData);
+              break;
+            case 'deletePermission':
+              runner.deletePermission(params.token, params.email);
+              break;
+            default:
+              reject(new Error(`Action không hợp lệ: ${action}`));
+          }
+        });
+      }
+
+      // ======================
+      // STATE & DOM
+      // ======================
+      let CURRENT_EMAIL = '';
+      let CURRENT_TOKEN = ''; // 🔑 Token phiên làm việc bảo mật
+      let ALLOWED_TEAMS = [];
+      let SELECTED_TEAMS = []; // 📌 Team được chọn (dùng cho checkbox modal)
+      let ADMIN_SELECTED_TEAMS = []; // 📌 Team được chọn trong form phân quyền
+      let CURRENT_ROLE = 'User';
+      let ALL_POSSIBLE_TEAMS = [];
+      let COUNTDOWN_TIMER = null;
+
+      const els = {
+        stepEmail: document.getElementById('step-email'),
+        stepOtp: document.getElementById('step-otp'),
+        stepQuery: document.getElementById('step-query'),
+        stepAdmin: document.getElementById('step-admin'),
+        adminEntrance: document.getElementById('admin-entrance'),
+        authEmail: document.getElementById('auth-email'),
+        sendOtpBtn: document.getElementById('send-otp-btn'),
+        emailStatus: document.getElementById('email-status'),
+        authOtp: document.getElementById('auth-otp'),
+        verifyOtpBtn: document.getElementById('verify-otp-btn'),
+        backToEmail: document.getElementById('back-to-email'),
+        otpEmailDisplay: document.getElementById('otp-email-display'),
+        countdownEl: document.getElementById('countdown'),
+        otpStatus: document.getElementById('otp-status'),
+        typeEl: document.getElementById('type'),
+        dateRangeEl: document.getElementById('date-range'),
+        searchBtn: document.getElementById('search-btn'),
+        searchBoxEl: document.getElementById('search-box'),
+        resultSearchEl: document.getElementById('result-search'),
+        resultsDiv: document.getElementById('results'),
+        // Team Modal Elements
+        teamModalOverlay: document.getElementById('team-modal-overlay'),
+        teamListContainer: document.getElementById('team-list-container'),
+        teamSearchInput: document.getElementById('team-search-input'),
+        teamSelectedText: document.getElementById('team-selected-text'),
+        teamCount: document.getElementById('team-count'),
+        // Admin Team Modal Elements
+        adminTeamModalOverlay: document.getElementById('admin-team-modal-overlay'),
+        adminTeamListContainer: document.getElementById('admin-team-list-container'),
+        adminTeamSearchInput: document.getElementById('admin-team-search-input'),
+        adminTeamSelectedText: document.getElementById('admin-team-selected-text'),
+        adminTeamCount: document.getElementById('admin-team-count')
+      };
+
+      // ======================
+      // UTILS
+      // ======================
+      function showStep(id) {
+        els.stepEmail.classList.toggle('active', id === 'step-email');
+        els.stepOtp.classList.toggle('active', id === 'step-otp');
+        els.stepQuery.classList.toggle('active', id === 'step-query');
+        if (els.stepAdmin) els.stepAdmin.classList.toggle('active', id === 'step-admin');
+      }
+
+      function showStatus(el, type, msg) {
+        el.className = 'status ' + (type === 'success' ? 'success' : 'error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+      }
+
+      function hideStatus(el) {
+        el.classList.add('hidden');
+      }
+
+      function startCountdown() {
+        if (COUNTDOWN_TIMER) clearInterval(COUNTDOWN_TIMER);
+        let timeLeft = 120;
+        els.countdownEl.textContent = timeLeft;
+        COUNTDOWN_TIMER = setInterval(() => {
+          timeLeft--;
+          els.countdownEl.textContent = timeLeft;
+          if (timeLeft <= 0) {
+            clearInterval(COUNTDOWN_TIMER);
+            els.verifyOtpBtn.disabled = true;
+          }
+        }, 1000);
+      }
+
+      // ✅ Định dạng số theo chuẩn Việt Nam: 1.000.000,00
+      function formatNumberVND(num) {
+        if (typeof num !== 'number') return String(num || '');
+        const isInt = Number.isInteger(num);
+        return new Intl.NumberFormat('vi-VN', {
+          minimumFractionDigits: isInt ? 0 : 2,
+          maximumFractionDigits: 2
+        }).format(num);
+      }
+
+      // ======================
+      // STEP 1: GỬI OTP
+      // ======================
+      if (els.sendOtpBtn) {
+        els.sendOtpBtn.addEventListener('click', async () => {
+          const email = els.authEmail.value.trim().toLowerCase();
+          if (!email || !/\S+@\S+\.\S+/.test(email)) {
+            return showStatus(els.emailStatus, 'error', 'Vui lòng nhập email hợp lệ.');
+          }
+
+          hideStatus(els.emailStatus);
+          els.sendOtpBtn.disabled = true;
+          els.sendOtpBtn.textContent = 'Đang gửi...';
+
+          try {
+            const res = await callGAS('sendOtp', { email });
+
+            if (res && res.success) {
+              CURRENT_EMAIL = email;
+              els.otpEmailDisplay.textContent = email;
+              startCountdown();
+              showStep('step-otp');
+              els.authOtp.focus();
+            } else {
+              showStatus(els.emailStatus, 'error', res?.error || 'Không gửi được OTP.');
+            }
+          } catch (err) {
+            console.error('[sendOtp] Lỗi:', err);
+            showStatus(els.emailStatus, 'error', 'Lỗi hệ thống. Vui lòng thử lại.');
+          } finally {
+            els.sendOtpBtn.disabled = false;
+            els.sendOtpBtn.textContent = 'Gửi mã OTP';
+          }
+        });
+      }
+
+      // ======================
+      // STEP 2: OTP
+      // ======================
+      if (els.backToEmail) {
+        els.backToEmail.addEventListener('click', () => {
+          if (COUNTDOWN_TIMER) clearInterval(COUNTDOWN_TIMER);
+          els.authOtp.value = '';
+          hideStatus(els.otpStatus);
+          showStep('step-email');
+        });
+      }
+
+      if (els.verifyOtpBtn) {
+        els.verifyOtpBtn.addEventListener('click', async () => {
+          const otp = els.authOtp.value.trim();
+          if (!otp || otp.length !== 6 || !/^\d+$/.test(otp)) {
+            return showStatus(els.otpStatus, 'error', 'OTP gồm 6 chữ số.');
+          }
+
+          hideStatus(els.otpStatus);
+          els.verifyOtpBtn.disabled = true;
+          els.verifyOtpBtn.textContent = 'Đang xác minh...';
+
+          try {
+            const res = await callGAS('verifyOtp', { email: CURRENT_EMAIL, otp });
+
+            if (res && res.valid) {
+              CURRENT_TOKEN = res.token; // 💾 Lưu token
+              ALLOWED_TEAMS = Array.isArray(res.teams) ? res.teams : [];
+              CURRENT_ROLE = res.role || 'User';
+
+              if (CURRENT_ROLE === 'Admin') {
+                els.adminEntrance.classList.add('active');
+              }
+
+              populateTeamSelect();
+              showStep('step-query');
+            } else {
+              showStatus(els.otpStatus, 'error', res?.error || 'OTP không hợp lệ.');
+            }
+          } catch (err) {
+            console.error('[verifyOtp] Lỗi:', err);
+            showStatus(els.otpStatus, 'error', 'Lỗi kết nối. Vui lòng thử lại.');
+          } finally {
+            els.verifyOtpBtn.disabled = false;
+            els.verifyOtpBtn.textContent = 'Xác minh OTP';
+          }
+        });
+      }
+
+      // ======================
+      // STEP 3: TEAM & QUERY
+      // ======================
+
+      // Khởi tạo team selector display
+      function populateTeamSelect() {
+        SELECTED_TEAMS = []; // Reset selected teams
+        updateDisplayText();
+        toggleDateRange();
+      }
+
+      // Mở modal chọn team
+      function openTeamModal() {
+        if (!ALLOWED_TEAMS || ALLOWED_TEAMS.length === 0) {
+          alert('Không có team nào được cấp quyền!');
+          return;
+        }
+        renderTeamList();
+        els.teamModalOverlay.classList.add('active');
+        els.teamSearchInput.value = '';
+        els.teamSearchInput.focus();
+      }
+      window.openTeamModal = openTeamModal;
+
+      // Đóng modal
+      function closeTeamModal() {
+        els.teamModalOverlay.classList.remove('active');
+      }
+      window.closeTeamModal = closeTeamModal;
+
+      // Render danh sách team với checkbox
+      function renderTeamList(filter = '') {
+        els.teamListContainer.innerHTML = '';
+
+        const filteredTeams = ALLOWED_TEAMS.filter(team =>
+          team.toLowerCase().includes(filter.toLowerCase())
+        );
+
+        if (filteredTeams.length === 0) {
+          els.teamListContainer.innerHTML = '<div class="team-empty-state">Không tìm thấy team nào</div>';
+          return;
+        }
+
+        filteredTeams.forEach(team => {
+          const isSelected = SELECTED_TEAMS.includes(team);
+          const div = document.createElement('div');
+          div.className = 'team-item' + (isSelected ? ' selected' : '');
+          div.innerHTML = `
+            <input type="checkbox" id="team-cb-${team}" ${isSelected ? 'checked' : ''}>
+            <label for="team-cb-${team}">${team}</label>
+          `;
+
+          // Click vào item để toggle
+          div.onclick = (e) => {
+            if (e.target.tagName !== 'INPUT') {
+              const cb = div.querySelector('input');
+              cb.checked = !cb.checked;
+            }
+            toggleTeamSelection(team);
+          };
+
+          els.teamListContainer.appendChild(div);
+        });
+
+        updateTeamCount();
+      }
+
+      // Toggle chọn/bỏ chọn team
+      function toggleTeamSelection(team) {
+        const idx = SELECTED_TEAMS.indexOf(team);
+        if (idx > -1) {
+          SELECTED_TEAMS.splice(idx, 1);
+        } else {
+          SELECTED_TEAMS.push(team);
+        }
+        renderTeamList(els.teamSearchInput.value);
+      }
+
+      // Lọc danh sách team khi gõ tìm kiếm
+      function filterTeamList() {
+        const filter = els.teamSearchInput.value;
+        renderTeamList(filter);
+      }
+      window.filterTeamList = filterTeamList;
+
+      // Cập nhật số lượng team đã chọn
+      function updateTeamCount() {
+        els.teamCount.textContent = SELECTED_TEAMS.length;
+      }
+
+      // Chọn/bỏ chọn tất cả
+      function toggleSelectAllTeams() {
+        if (SELECTED_TEAMS.length === ALLOWED_TEAMS.length) {
+          SELECTED_TEAMS = [];
+        } else {
+          SELECTED_TEAMS = [...ALLOWED_TEAMS];
+        }
+        renderTeamList(els.teamSearchInput.value);
+      }
+      window.toggleSelectAllTeams = toggleSelectAllTeams;
+
+      // Xác nhận lựa chọn và đóng modal
+      function confirmTeamSelection() {
+        updateDisplayText();
+        closeTeamModal();
+        toggleDateRange();
+      }
+      window.confirmTeamSelection = confirmTeamSelection;
+
+      // Cập nhật text hiển thị trên selector
+      function updateDisplayText() {
+        if (SELECTED_TEAMS.length === 0) {
+          els.teamSelectedText.textContent = '-- Chọn team --';
+          els.teamSelectedText.classList.add('placeholder');
+        } else if (SELECTED_TEAMS.length === 1) {
+          els.teamSelectedText.textContent = SELECTED_TEAMS[0];
+          els.teamSelectedText.classList.remove('placeholder');
+        } else {
+          els.teamSelectedText.textContent = `${SELECTED_TEAMS[0]} +${SELECTED_TEAMS.length - 1} khác`;
+          els.teamSelectedText.classList.remove('placeholder');
+        }
+      }
+
+      function toggleDateRange() {
+        const hasTeam = SELECTED_TEAMS.length > 0;
+        const enabled = els.typeEl.value && hasTeam;
+        els.dateRangeEl.classList.toggle('hidden', !enabled);
+        els.searchBtn.disabled = !enabled;
+      }
+
+      if (els.typeEl) els.typeEl.addEventListener('change', toggleDateRange);
+
+      if (els.searchBtn) {
+        els.searchBtn.removeEventListener('click', handleSearch);
+        els.searchBtn.addEventListener('click', handleSearch);
+      }
+
+      // Đóng modal khi click overlay
+      if (els.teamModalOverlay) {
+        els.teamModalOverlay.addEventListener('click', (e) => {
+          if (e.target === els.teamModalOverlay) closeTeamModal();
+        });
+      }
+      if (els.adminTeamModalOverlay) {
+        els.adminTeamModalOverlay.addEventListener('click', (e) => {
+          if (e.target === els.adminTeamModalOverlay) closeAdminTeamModal();
+        });
+      }
+
+      async function handleSearch() {
+        const type = els.typeEl?.value;
+        const selectedTeams = SELECTED_TEAMS.filter(v => v);
+
+        const fromQ = parseInt(document.getElementById('from-quarter')?.value || '0');
+        const fromY = parseInt(document.getElementById('from-year')?.value || '0');
+        const toQ = parseInt(document.getElementById('to-quarter')?.value || '0');
+        const toY = parseInt(document.getElementById('to-year')?.value || '0');
+
+        if (!type || selectedTeams.length === 0) {
+          alert('Vui lòng chọn loại tra cứu và ít nhất 1 team!');
+          return;
+        }
+        if (fromY > toY || (fromY === toY && fromQ > toQ)) {
+          alert('Khoảng thời gian không hợp lệ!');
+          return;
+        }
+
+        els.resultsDiv.innerHTML = '<div class="loading-center">Đang tra cứu dữ liệu... ⏳</div>';
+        els.searchBtn.disabled = true;
+        els.searchBtn.textContent = 'Đang tra...';
+
+        const payload = {
+          type,
+          token: CURRENT_TOKEN, // 🛡️ Gửi token thay vì email
+          selectedTeams: selectedTeams,
+          fromYear: fromY,
+          fromQuarter: fromQ,
+          toYear: toY,
+          toQuarter: toQ
+        };
+
+        try {
+          const res = await callGAS('getFilteredData', payload);
+          renderResults(res);
+        } catch (err) {
+          console.error('[Tra cứu] Lỗi:', err);
+          els.resultsDiv.innerHTML = '';
+          const errDiv = document.createElement('div');
+          errDiv.className = 'status error';
+          errDiv.textContent = `⚠️ Lỗi hệ thống: ${err.message || 'Không xác định'}`;
+          els.resultsDiv.appendChild(errDiv);
+        } finally {
+          els.searchBtn.disabled = false;
+          els.searchBtn.textContent = '🔍 Tra cứu';
+        }
+      }
+
+      // ======================
+      // RENDER & FILTER
+      // ======================
+      function renderResults(res) {
+        els.resultsDiv.innerHTML = '';
+        if (!res || !res.success) {
+          els.resultsDiv.innerHTML = '';
+          const errDiv = document.createElement('div');
+          errDiv.className = 'status error';
+          errDiv.textContent = `❌ ${res?.error || 'Không có dữ liệu.'}`;
+          els.resultsDiv.appendChild(errDiv);
+
+          els.searchBoxEl.classList.add('hidden');
+          return;
+        }
+
+        if (!res.data || res.data.length === 0) {
+          els.resultsDiv.innerHTML = `
+      <div class='status success'>
+        ✅ Không có dữ liệu trong khoảng 
+        <strong>${document.getElementById('from-year').value}Q${document.getElementById('from-quarter').value} 
+        → ${document.getElementById('to-year').value}Q${document.getElementById('to-quarter').value}</strong>.
+      </div>`;
+          els.searchBoxEl.classList.add('hidden');
+          return;
+        }
+
+        els.searchBoxEl.classList.remove('hidden');
+        if (els.resultSearchEl) els.resultSearchEl.value = '';
+
+        const headers = res.headers || [];
+        const rows = res.data || [];
+
+        const NUMERIC_COLUMNS = ['M1', 'M2', 'M3', 'DSTC', 'Mức 0', 'Muc1', 'Muc2', 'Muc3', 'Muc 4', 'Thực đạt'];
+
+        // Tạo bảng
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-wrap';
+        const table = document.createElement('table');
+        table.id = 'result-table';
+
+        // THEAD
+        const thead = document.createElement('thead');
+        const trh = document.createElement('tr');
+        headers.forEach(h => {
+          const th = document.createElement('th');
+          th.textContent = h || '';
+          trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+
+        // TBODY
+        const tbody = document.createElement('tbody');
+        rows.forEach(row => {
+          const tr = document.createElement('tr');
+          row.forEach((cell, idx) => {
+            const td = document.createElement('td');
+            const header = headers[idx] || '';
+
+            if (cell == null || cell === '') {
+              td.textContent = '';
+            } else if (NUMERIC_COLUMNS.includes(header) && typeof cell === 'number') {
+              td.textContent = formatNumberVND(cell);
+              td.style.textAlign = 'right';
+            } else {
+              td.textContent = String(cell).trim();
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+
+        // Tiêu đề + nút xuất Excel
+        const title = document.createElement('h3');
+        title.textContent = `Kết quả (${rows.length} dòng):`;
+
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'btn outline';
+        exportBtn.textContent = '📥 Xuất Excel';
+        exportBtn.onclick = () => exportToExcel(headers, rows);
+
+        const btnContainer = document.createElement('div');
+        btnContainer.style.marginTop = '12px';
+        btnContainer.appendChild(exportBtn);
+
+        els.resultsDiv.appendChild(title);
+        els.resultsDiv.appendChild(btnContainer);
+        els.resultsDiv.appendChild(wrapper);
+
+        // Gắn sự kiện tìm kiếm
+        if (els.resultSearchEl && !els.resultSearchEl.dataset.bound) {
+          els.resultSearchEl.addEventListener('input', filterResults);
+          els.resultSearchEl.dataset.bound = 'true';
+        }
+      }
+
+      function filterResults() {
+        const keyword = (els.resultSearchEl?.value || '').trim().toLowerCase();
+        const rows = document.querySelectorAll('#result-table tbody tr');
+        if (!rows.length) return;
+        rows.forEach(r => {
+          const text = (r.textContent || '').toLowerCase();
+          r.style.display = text.includes(keyword) ? '' : 'none';
+        });
+      }
+
+      function clearSearch() {
+        if (els.resultSearchEl) {
+          els.resultSearchEl.value = '';
+          filterResults();
+          els.resultSearchEl.focus();
+        }
+      }
+      window.clearSearch = clearSearch;
+
+      // ✅ Xuất Excel (client-side)
+      function exportToExcel(headers, rows) {
+        if (!headers || !rows || rows.length === 0) {
+          alert('Không có dữ liệu để xuất.');
+          return;
+        }
+
+        try {
+          const NUMERIC_COLUMNS = ['M1', 'M2', 'M3', 'DSTC', 'Mức 0', 'Muc1', 'Muc2', 'Muc3', 'Muc 4', 'Thực đạt'];
+          const data = [headers];
+
+          rows.forEach(row => {
+            const newRow = [];
+            row.forEach((cell, idx) => {
+              const header = headers[idx] || '';
+              if (NUMERIC_COLUMNS.includes(header) && typeof cell === 'number') {
+                newRow.push(cell);
+              } else {
+                newRow.push(cell == null ? '' : String(cell).trim());
+              }
+            });
+            data.push(newRow);
+          });
+
+          const ws = XLSX.utils.aoa_to_sheet(data);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'DSTC');
+
+          const now = new Date();
+          const fileName = `DSTC_${els.typeEl.value === 'team' ? 'Team' : 'CaNhan'}_${now.toISOString().slice(0, 10)}.xlsx`;
+          XLSX.writeFile(wb, fileName);
+        } catch (err) {
+          console.error('Lỗi xuất Excel:', err);
+          alert('❌ Lỗi khi xuất Excel. Vui lòng kiểm tra dữ liệu hoặc thử lại.');
+        }
+      }
+
+      // ======================
+      // ADMIN LOGIC
+      // ======================
+      async function showAdminSection() {
+        showStep('step-admin');
+        if (ALL_POSSIBLE_TEAMS.length === 0) {
+          await loadPossibleTeams();
+        }
+        updateAdminDisplayText();
+        loadPermissions();
+      }
+      window.showAdminSection = showAdminSection;
+
+      async function loadPossibleTeams() {
+        try {
+          const res = await callGAS('getAllPossibleTeams', { token: CURRENT_TOKEN });
+          if (res.success) {
+            ALL_POSSIBLE_TEAMS = res.teams;
+          }
+        } catch (e) {
+          console.error("Lỗi tải team list:", e);
+        }
+      }
+
+      // --- Admin Team Modal Logic ---
+      function openAdminTeamModal() {
+        if (ALL_POSSIBLE_TEAMS.length === 0) {
+          alert('Đang tải danh sách team, vui lòng đợi...');
+          return;
+        }
+        renderAdminTeamList();
+        els.adminTeamModalOverlay.classList.add('active');
+        els.adminTeamSearchInput.value = '';
+        els.adminTeamSearchInput.focus();
+      }
+      window.openAdminTeamModal = openAdminTeamModal;
+
+      function closeAdminTeamModal() {
+        els.adminTeamModalOverlay.classList.remove('active');
+      }
+      window.closeAdminTeamModal = closeAdminTeamModal;
+
+      function renderAdminTeamList(filter = '') {
+        els.adminTeamListContainer.innerHTML = '';
+        const filteredTeams = ALL_POSSIBLE_TEAMS.filter(team =>
+          team.toLowerCase().includes(filter.toLowerCase())
+        );
+
+        if (filteredTeams.length === 0) {
+          els.adminTeamListContainer.innerHTML = '<div class="team-empty-state">Không tìm thấy team nào</div>';
+          return;
+        }
+
+        filteredTeams.forEach(team => {
+          const isSelected = ADMIN_SELECTED_TEAMS.includes(team);
+          const div = document.createElement('div');
+          div.className = 'team-item' + (isSelected ? ' selected' : '');
+          div.innerHTML = `
+              <input type="checkbox" id="admin-team-cb-${team}" ${isSelected ? 'checked' : ''}>
+              <label for="admin-team-cb-${team}">${team}</label>
+            `;
+          div.onclick = (e) => {
+            if (e.target.tagName !== 'INPUT') {
+              const cb = div.querySelector('input');
+              cb.checked = !cb.checked;
+            }
+            toggleAdminTeamSelection(team);
+          };
+          els.adminTeamListContainer.appendChild(div);
+        });
+        updateAdminTeamCount();
+      }
+
+      function toggleAdminTeamSelection(team) {
+        const idx = ADMIN_SELECTED_TEAMS.indexOf(team);
+        if (idx > -1) ADMIN_SELECTED_TEAMS.splice(idx, 1);
+        else ADMIN_SELECTED_TEAMS.push(team);
+        renderAdminTeamList(els.adminTeamSearchInput.value);
+      }
+
+      function filterAdminTeamList() {
+        renderAdminTeamList(els.adminTeamSearchInput.value);
+      }
+      window.filterAdminTeamList = filterAdminTeamList;
+
+      function updateAdminTeamCount() {
+        els.adminTeamCount.textContent = ADMIN_SELECTED_TEAMS.length;
+      }
+
+      function toggleSelectAllAdminTeams() {
+        if (ADMIN_SELECTED_TEAMS.length === ALL_POSSIBLE_TEAMS.length) ADMIN_SELECTED_TEAMS = [];
+        else ADMIN_SELECTED_TEAMS = [...ALL_POSSIBLE_TEAMS];
+        renderAdminTeamList(els.adminTeamSearchInput.value);
+      }
+      window.toggleSelectAllAdminTeams = toggleSelectAllAdminTeams;
+
+      function confirmAdminTeamSelection() {
+        updateAdminDisplayText();
+        closeAdminTeamModal();
+      }
+      window.confirmAdminTeamSelection = confirmAdminTeamSelection;
+
+      function updateAdminDisplayText() {
+        if (ADMIN_SELECTED_TEAMS.length === 0) {
+          els.adminTeamSelectedText.textContent = '-- Chọn team --';
+          els.adminTeamSelectedText.classList.add('placeholder');
+        } else if (ADMIN_SELECTED_TEAMS.length === 1) {
+          els.adminTeamSelectedText.textContent = ADMIN_SELECTED_TEAMS[0];
+          els.adminTeamSelectedText.classList.remove('placeholder');
+        } else {
+          els.adminTeamSelectedText.textContent = `${ADMIN_SELECTED_TEAMS[0]} +${ADMIN_SELECTED_TEAMS.length - 1} khác`;
+          els.adminTeamSelectedText.classList.remove('placeholder');
+        }
+      }
+      // --- End Admin Team Modal Logic ---
+
+      async function loadPermissions() {
+        const container = document.getElementById('perm-list-container');
+        container.innerHTML = '<div class="loading-center">Đang tải danh sách...</div>';
+        try {
+          const res = await callGAS('getPermissionsList', { token: CURRENT_TOKEN });
+          if (res.success) {
+            renderPermList(res.data);
+          } else {
+            container.innerHTML = `<div class="status error">${res.error}</div>`;
+          }
+        } catch (e) {
+          container.innerHTML = `<div class="status error">Lỗi kết nối list.</div>`;
+        }
+      }
+
+      function renderPermList(data) {
+        const container = document.getElementById('perm-list-container');
+        if (!data || data.length === 0) {
+          container.innerHTML = '<p>Chưa có ai trong danh sách.</p>';
+          return;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.className = 'table-wrap';
+        const table = document.createElement('table');
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>Email (A)</th>
+              <th>Họ tên (C)</th>
+              <th>Quyền (D)</th>
+              <th>Teams (B)</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+
+        data.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${item.email}</strong></td>
+            <td>${item.colC || ''}</td>
+            <td><span class="badge badge-${item.role.toLowerCase()}">${item.role}</span></td>
+            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.teams}">${item.teams || ''}</td>
+            <td class="perm-btn-group">
+              <button class="btn sm ghost btn-edit-perm">Sửa</button>
+              <button class="btn sm danger" onclick='handleDeletePermission("${item.email}")'>Xóa</button>
+            </td>
+          `;
+          tr.querySelector('.btn-edit-perm').onclick = () => editPerm(item);
+          tbody.appendChild(tr);
+        });
+
+        wrap.appendChild(table);
+        container.innerHTML = '';
+        container.appendChild(wrap);
+      }
+
+      window.editPerm = function (item) {
+        document.getElementById('p-email').value = item.email;
+        document.getElementById('p-colC').value = item.colC || '';
+        document.getElementById('p-role').value = item.role || 'User';
+
+        // Cập nhật SELECTED_TEAMS cho Admin
+        ADMIN_SELECTED_TEAMS = (item.teams || '').split(';').map(t => t.trim()).filter(t => t);
+        updateAdminDisplayText();
+
+        document.getElementById('form-title').textContent = '📝 Cập nhật thông tin: ' + item.email;
+        document.getElementById('p-email').readOnly = true;
+        document.getElementById('p-email').style.background = '#f1f5f9';
+      };
+
+      function resetPermForm() {
+        document.getElementById('p-email').value = '';
+        document.getElementById('p-email').readOnly = false;
+        document.getElementById('p-email').style.background = '';
+        document.getElementById('p-colC').value = '';
+        document.getElementById('p-role').value = 'User';
+        document.getElementById('form-title').textContent = 'Thêm mới / Cập nhật quyền';
+
+        ADMIN_SELECTED_TEAMS = [];
+        updateAdminDisplayText();
+
+        hideStatus(document.getElementById('perm-status'));
+      }
+      window.resetPermForm = resetPermForm;
+
+      async function handleSavePermission() {
+        const btn = document.getElementById('save-perm-btn');
+        const statusEl = document.getElementById('perm-status');
+        const pData = {
+          email: document.getElementById('p-email').value.trim(),
+          colC: document.getElementById('p-colC').value.trim(),
+          role: document.getElementById('p-role').value,
+          teams: ADMIN_SELECTED_TEAMS.join(';')
+        };
+
+        if (!pData.email) return showStatus(statusEl, 'error', 'Vui lòng nhập email.');
+
+        btn.disabled = true;
+        btn.textContent = 'Đang lưu...';
+        hideStatus(statusEl);
+
+        try {
+          const res = await callGAS('savePermission', { token: CURRENT_TOKEN, pData });
+          if (res.success) {
+            showStatus(statusEl, 'success', 'Đã lưu thành công!');
+            resetPermForm();
+            loadPermissions();
+          } else {
+            showStatus(statusEl, 'error', res.error);
+          }
+        } catch (e) {
+          console.error('Lỗi savePermission:', e);
+          const message = e && e.message ? e.message : String(e || 'Không xác định');
+          showStatus(statusEl, 'error', 'Lỗi khi lưu: ' + message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Lưu thông tin';
+        }
+      }
+      window.handleSavePermission = handleSavePermission;
+
+      async function handleDeletePermission(email) {
+        if (!confirm(`Bạn có chắc muốn xóa quyền của ${email}?`)) return;
+
+        try {
+          const res = await callGAS('deletePermission', { token: CURRENT_TOKEN, email });
+          if (res.success) {
+            alert('Đã xóa thành công.');
+            loadPermissions();
+          } else {
+            alert('Lỗi: ' + res.error);
+          }
+        } catch (e) {
+          console.error('Lỗi deletePermission:', e);
+          alert('Lỗi khi xóa: ' + (e && e.message ? e.message : String(e || 'Không xác định')));
+        }
+      }
+      window.handleDeletePermission = handleDeletePermission;
+
+      // ======================
+      // INIT & KEY BINDING
+      // ======================
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log('✅ Web App loaded. API Endpoint:', GAS_URL);
+      });
+
+      document.addEventListener('keypress', e => {
+        if (e.key === 'Enter') {
+          if (els.stepEmail.classList.contains('active')) els.sendOtpBtn?.click();
+          else if (els.stepOtp.classList.contains('active')) els.verifyOtpBtn?.click();
+          else if (els.stepQuery.classList.contains('active') && !els.searchBtn.disabled) handleSearch();
+        }
+      });
+    </script>
+</body>
+
+</html>

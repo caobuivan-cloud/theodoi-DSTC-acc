@@ -952,7 +952,7 @@
         <div class="team-modal-footer">
           <div class="selection-info">
             <span>Đã chọn: <strong id="admin-team-count">0</strong> team</span>
-            <span class="select-all-link" onclick="toggleSelectAllAdminTeams()">Chọn tất cả</span>
+            <span class="select-all-link" onclick="selectAllAdminTeams()">Chọn tất cả</span>
           </div>
           <div class="btn-group">
             <button class="btn ghost" onclick="closeAdminTeamModal()">Hủy</button>
@@ -1665,6 +1665,7 @@
             container.innerHTML = `<div class="status error">${res.error}</div>`;
           }
         } catch (e) {
+          console.error('Lỗi tải hoặc hiển thị danh sách phân quyền:', e);
           container.innerHTML = `<div class="status error">Lỗi kết nối list.</div>`;
         }
       }
@@ -1689,21 +1690,49 @@
               <th style="text-align:right">Thao tác</th>
             </tr>
           </thead>
-          <tbody>
-            ${data.map(item => `
-              <tr>
-                <td><strong>${escapeHtml(item.email)}</strong></td>
-                <td>${escapeHtml(item.colC)}</td>
-                <td><span class="role-badge ${item.role === 'Admin' ? 'role-admin' : 'role-user'}">${escapeHtml(item.role)}</span></td>
-                <td>${escapeHtml(item.teams)}</td>
-                <td style="text-align:right">
-                  <button class="btn sm" onclick="editPermRow('${escapeHtml(item.email)}', '${escapeHtml(item.teams)}', '${escapeHtml(item.colC)}', '${escapeHtml(item.role)}')">Sửa</button>
-                  <button class="btn sm danger" onclick="handleDeletePermission('${escapeHtml(item.email)}')">Xóa</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
+          <tbody></tbody>
         `;
+        const tbody = table.querySelector('tbody');
+
+        data.forEach(item => {
+          const email = String(item.email ?? '');
+          const teams = String(item.teams ?? '');
+          const colC = String(item.colC ?? '');
+          const role = String(item.role || 'User');
+          const tr = document.createElement('tr');
+
+          const emailCell = document.createElement('td');
+          const emailStrong = document.createElement('strong');
+          emailStrong.textContent = email;
+          emailCell.appendChild(emailStrong);
+
+          const nameCell = document.createElement('td');
+          nameCell.textContent = colC;
+
+          const roleCell = document.createElement('td');
+          const roleBadge = document.createElement('span');
+          roleBadge.className = `role-badge ${role === 'Admin' ? 'role-admin' : 'role-user'}`;
+          roleBadge.textContent = role;
+          roleCell.appendChild(roleBadge);
+
+          const teamsCell = document.createElement('td');
+          teamsCell.textContent = teams;
+
+          const actionCell = document.createElement('td');
+          actionCell.style.textAlign = 'right';
+          const editButton = document.createElement('button');
+          editButton.className = 'btn sm';
+          editButton.textContent = 'Sửa';
+          editButton.addEventListener('click', () => editPermRow(email, teams, colC, role));
+          const deleteButton = document.createElement('button');
+          deleteButton.className = 'btn sm danger';
+          deleteButton.textContent = 'Xóa';
+          deleteButton.addEventListener('click', () => handleDeletePermission(email));
+          actionCell.append(editButton, deleteButton);
+
+          tr.append(emailCell, nameCell, roleCell, teamsCell, actionCell);
+          tbody.appendChild(tr);
+        });
         wrap.appendChild(table);
         container.innerHTML = '';
         container.appendChild(wrap);
@@ -1768,7 +1797,9 @@
             showStatus(statusEl, 'error', res.error);
           }
         } catch (e) {
-          showStatus(statusEl, 'error', 'Lỗi hệ thống khi lưu.');
+          console.error('Lỗi savePermission:', e);
+          const message = e && e.message ? e.message : String(e || 'Không xác định');
+          showStatus(statusEl, 'error', 'Lỗi khi lưu: ' + message);
         } finally {
           btn.disabled = false;
           btn.textContent = 'Lưu thông tin';
@@ -1794,7 +1825,8 @@
             alert('Lỗi: ' + res.error);
           }
         } catch (e) {
-          alert('Lỗi kết nối khi xóa.');
+          console.error('Lỗi deletePermission:', e);
+          alert('Lỗi khi xóa: ' + (e && e.message ? e.message : String(e || 'Không xác định')));
         }
       }
       window.handleDeletePermission = handleDeletePermission;

@@ -1,0 +1,587 @@
+// 🔑 IDs của các Google Sheet
+const KEY_ACCOUNT_SHEET_ID = "1nfeh_cnEOn9UKz2pYucINirHmpVD1Yx9MX_KUTlwywk";
+const DSTC_SHEET_ID = "1E7YY6EwWpcECmVQmviSU7tXejjt1CyD5jkoKvMo5t3Y";
+
+// ⏱️ Thời gian sống & Rate Limit
+const OTP_TTL = 120; // 2 phút
+const SESSION_TTL = 21600; // 6 giờ (Thời gian phiên làm việc)
+const OTP_COOLDOWN_TTL = 60; // 60 giây giữa 2 lần gửi cho cùng 1 email
+const GLOBAL_OTP_WINDOW_TTL = 600; // 10 phút cửa sổ rate limit toàn cục
+const GLOBAL_OTP_LIMIT = 30; // Tối đa 30 OTP / 10 phút trên toàn hệ thống
+
+
+// 🌐 Entry point cho Web App (phục vụ fallback giao diện nội bộ)
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle("Tra cứu DSTC - Admicro")
+    .addMetaTag("viewport", "width=device-width, initial-scale=1");
+}
+
+// 🌐 Entry point REST API (tiếp nhận POST request từ Frontend Vercel)
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "Dữ liệu yêu cầu không hợp lệ."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(e.postData.contents);
+    } catch (parseErr) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "Dữ liệu JSON không đúng định dạng."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const action = data.action;
+    let result;
+
+    switch (action) {
+      case 'sendOtp':
+        result = sendOtp(data.email);
+        break;
+      case 'verifyOtp':
+        result = verifyOtp(data.email, data.otp);
+        break;
+      case 'getFilteredData':
+        result = getFilteredData(data);
+        break;
+      case 'getAllPossibleTeams':
+        result = getAllPossibleTeams(data.token);
+        break;
+      case 'getPermissionsList':
+        result = getPermissionsList(data.token);
+        break;
+      case 'savePermission':
+        result = savePermission(data.token, data.pData);
+        break;
+      case 'deletePermission':
+        result = deletePermission(data.token, data.email);
+        break;
+      default:
+        result = { success: false, error: "Action không hợp lệ: " + action };
+        break;
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    console.error("Lỗi trong doPost:", err);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: "Lỗi hệ thống: " + (err.message || err.toString())
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+
+// 📤 Gửi OTP đến email — trả về { success: true } nếu gửi được (không tiết lộ email có tồn tại hay không)
+function sendOtp(email) {
+  try {
+    email = (email || '').toString().trim().toLowerCase();
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      return { success: false, error: "Email không hợp lệ" };
+    }
+
+    const emailHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email).map(b => (b + 256) % 256).join('');
+    const cache = CacheService.getScriptCache();
+
+    // 1. Kiểm tra Cooldown 60s per-email
+    const cooldownKey = "CD_" + emailHash;
+    if (cache.get(cooldownKey)) {
+      // Vẫn trong thời gian chờ -> trả success nhưng không gửi lại để tránh spam
+      return { success: true };
+    }
+
+    // 2. Atomic Global Rate Limit & Quota Guard
+    const lock = LockService.getScriptLock();
+    let lockAcquired = false;
+    try {
+      lockAcquired = lock.tryLock(3000);
+    } catch (e) {
+      console.warn("Lock acquire error:", e);
+    }
+
+    if (!lockAcquired) {
+      console.warn("sendOtp: Không lấy được script lock, fail-closed an toàn.");
+      return { success: true }; // Generic response
+    }
+
+    try {
+      // Kiểm tra global budget trong 10 phút
+      const globalCountKey = "GLOBAL_OTP_COUNT";
+      let currentGlobalCount = parseInt(cache.get(globalCountKey) || '0', 10);
+      if (currentGlobalCount >= GLOBAL_OTP_LIMIT) {
+        console.warn("sendOtp: Vượt quá Global Rate Limit (" + GLOBAL_OTP_LIMIT + " OTP/10p).");
+        return { success: true }; // Generic response
+      }
+
+      // Kiểm tra MailApp remaining quota
+      let remainingQuota = 100;
+      try {
+        remainingQuota = MailApp.getRemainingDailyQuota();
+      } catch (quotaErr) {
+        console.warn("Không lấy được quota:", quotaErr);
+      }
+      if (remainingQuota <= 5) {
+        console.warn("sendOtp: MailApp daily quota sắp cạn (còn " + remainingQuota + ").");
+        return { success: true }; // Generic response
+      }
+
+      // Tăng global counter
+      cache.put(globalCountKey, (currentGlobalCount + 1).toString(), GLOBAL_OTP_WINDOW_TTL);
+      // Đặt cooldown cho email này
+      cache.put(cooldownKey, "1", OTP_COOLDOWN_TTL);
+
+    } finally {
+      lock.releaseLock();
+    }
+
+    // 3. Sinh OTP 6 chữ số
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 100000 → 999999
+    const key = "OTP_" + emailHash;
+    const expireTime = Date.now() + (OTP_TTL * 1000);
+    const props = PropertiesService.getScriptProperties();
+
+    props.setProperty(key, JSON.stringify({ otp: otp, expire: expireTime, attempts: 0 }));
+
+    // 4. Kiểm tra xem email có thuộc quyền xem team nào trong hệ thống không (Allowlist check)
+    // Nếu email không tồn tại trong hệ thống, KHÔNG gửi mail để bảo vệ quota nhưng vẫn trả { success: true }
+    const { teams, role } = getTeamsForEmail(email);
+    if (teams.length === 0 && role !== 'Admin') {
+      console.info("Email không có quyền trong hệ thống, bỏ qua gửi mail:", email);
+      return { success: true };
+    }
+
+    // 5. Gửi email
+    try {
+      MailApp.sendEmail({
+        to: email,
+        subject: "[Admicro DSTC] Mã OTP xác thực tra cứu",
+        htmlBody: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; background: #f9fafb;">
+            <h2 style="color: #1e40af;">Mã OTP xác thực</h2>
+            <p>Xin chào,</p>
+            <p>Mã OTP của bạn để tra cứu DSTC là:</p>
+            <div style="text-align: center; margin: 20px 0; font-size: 24px; font-weight: bold; color: #1e40af; background: white; padding: 12px; border-radius: 6px; letter-spacing: 4px;">
+              ${otp}
+            </div>
+            <p>Mã này có hiệu lực trong <strong>2 phút</strong>.</p>
+            <p>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email.</p>
+            <hr style="margin: 20px 0;" />
+            <p><small>Đây là email tự động từ hệ thống Tra cứu DSTC — Account Admicro.</small></p>
+          </div>
+        `
+      });
+      console.log("Đã gửi OTP thành công tới:", email);
+      logAction(email, "SEND_OTP", "Gửi mã OTP thành công");
+    } catch (mailErr) {
+      console.error("Lỗi MailApp.sendEmail:", mailErr);
+      logAction(email, "SEND_OTP_ERROR", "Lỗi gửi mail: " + (mailErr.message || mailErr.toString()));
+    }
+
+    return { success: true };
+
+  } catch (e) {
+    console.error("Lỗi trong sendOtp:", e);
+    return { success: false, error: "Lỗi hệ thống khi gửi OTP" };
+  }
+}
+
+
+// ✅ Xác minh OTP — nếu đúng, trả về danh sách team được phép
+function verifyOtp(email, otp) {
+  try {
+    email = (email || '').toString().trim().toLowerCase();
+    otp = (otp || '').toString().trim();
+
+    if (!email || !otp) {
+      return { valid: false, error: "Vui lòng nhập email và OTP" };
+    }
+
+    // Lấy key hash
+    const key = "OTP_" + Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email).map(b => (b + 256) % 256).join('');
+    const props = PropertiesService.getScriptProperties();
+    const lock = LockService.getScriptLock();
+
+    let lockAcquired = false;
+    try {
+      lockAcquired = lock.tryLock(3000);
+    } catch (e) {
+      console.warn("verifyOtp lock error:", e);
+    }
+
+    if (!lockAcquired) {
+      return { valid: false, error: "Hệ thống đang bận, vui lòng thử lại sau giây lát." };
+    }
+
+    let isValid = false;
+    let authError = "";
+
+    try {
+      const stored = props.getProperty(key);
+      if (!stored) {
+        isValid = false;
+        authError = "OTP không hợp lệ hoặc đã hết hạn";
+      } else {
+        const parsed = JSON.parse(stored);
+        const savedOtp = parsed.otp;
+        const expire = parsed.expire;
+        let attempts = parsed.attempts || 0;
+        const now = Date.now();
+
+        if (now > expire) {
+          props.deleteProperty(key);
+          isValid = false;
+          authError = "OTP đã hết hạn (2 phút)";
+        } else if (attempts >= 5) {
+          props.deleteProperty(key);
+          isValid = false;
+          authError = "Bạn đã nhập sai OTP quá 5 lần. Vui lòng yêu cầu mã mới.";
+        } else if (savedOtp === otp) {
+          // OTP chính xác -> Xóa luôn sau khi dùng 1 lần
+          props.deleteProperty(key);
+          isValid = true;
+        } else {
+          // OTP sai -> tăng attempt counter
+          attempts += 1;
+          if (attempts >= 5) {
+            props.deleteProperty(key);
+            authError = "Bạn đã nhập sai OTP quá 5 lần. Vui lòng yêu cầu mã mới.";
+          } else {
+            props.setProperty(key, JSON.stringify({ otp: savedOtp, expire: expire, attempts: attempts }));
+            authError = "OTP không chính xác (còn " + (5 - attempts) + " lần thử).";
+          }
+          isValid = false;
+        }
+      }
+    } finally {
+      lock.releaseLock();
+    }
+
+    if (!isValid) {
+      return { valid: false, error: authError || "OTP không hợp lệ hoặc đã hết hạn" };
+    }
+
+    // ✅ OTP đúng → Tạo Session Token bảo mật (thực hiện sau khi đã release lock)
+    const { teams, role } = getTeamsForEmail(email);
+    if (teams.length === 0 && role !== 'Admin') {
+      return { valid: false, error: "Email này không được cấp quyền xem bất kỳ team nào." };
+    }
+
+    // Tạo token ngẫu nhiên & lưu vào Cache (Server-side session)
+    const token = Utilities.getUuid();
+    CacheService.getScriptCache().put(token, email, SESSION_TTL);
+
+    // GHI LOG ĐĂNG NHẬP
+    logAction(email, 'LOGIN', 'Đăng nhập thành công');
+
+    return { valid: true, token, email, teams, role };
+
+  } catch (e) {
+    console.error("Lỗi trong verifyOtp:", e);
+    return { valid: false, error: "Lỗi hệ thống khi xác minh OTP" };
+  }
+}
+
+
+// 📋 Lấy danh sách team & quyền được phép từ sheet "DanhSach"
+function getTeamsForEmail(email) {
+  try {
+    const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
+    const sheet = ss.getSheetByName("DanhSach");
+    if (!sheet) throw new Error("Sheet 'DanhSach' không tồn tại");
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { teams: [], role: 'User' };
+
+    // Lấy dữ liệu 4 cột: A (Email), B (Teams), C (Ghi chú/Họ tên), D (Quyền)
+    const data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+
+    for (let row of data) {
+      let [storedEmail, teamsStr, colC, role] = row;
+      if (storedEmail && storedEmail.toString().trim().toLowerCase() === email) {
+        const teams = teamsStr ? teamsStr.toString().split(';').map(t => t.trim()).filter(t => t.length > 0) : [];
+        const userRole = (role || 'User').toString().trim();
+        return { teams, role: userRole };
+      }
+    }
+    return { teams: [], role: 'User' };
+  } catch (e) {
+    console.error("Lỗi trong getTeamsForEmail:", e);
+    return { teams: [], role: 'User' };
+  }
+}
+
+// 🛡️ Kiểm tra xem token có phải là Admin không
+function isAdmin(token) {
+  const email = CacheService.getScriptCache().get(token);
+  if (!email) return false;
+  const { role } = getTeamsForEmail(email);
+  return role === 'Admin';
+}
+
+
+// 📊 Lấy dữ liệu đã lọc theo điều kiện — sử dụng SECURITY TOKEN (không tin tưởng email từ client)
+function getFilteredData(options) {
+  const { type, token, selectedTeams, fromYear, fromQuarter, toYear, toQuarter } = options;
+
+  try {
+    // 1. Kiểm tra Token & Lấy Email từ Server Cache
+    if (!token) return { success: false, error: "Thiếu token xác thực." };
+
+    const email = CacheService.getScriptCache().get(token);
+    if (!email) {
+      return { success: false, error: "Phiên làm việc đã hết hạn. Vui lòng tải lại trang và đăng nhập lại." };
+    }
+
+    // 2. Kiểm tra input khác
+    if (!selectedTeams || !Array.isArray(selectedTeams) || selectedTeams.length === 0) {
+      return { success: false, error: "Chưa chọn team nào." };
+    }
+
+    // 3. Kiểm tra quyền (Tái xác thực quyền của Email lấy từ Token)
+    const { teams: allowedTeams, role } = getTeamsForEmail(email);
+
+    // Nếu là Admin thì có quyền xem tất cả, nếu không thì phải check list
+    if (role !== 'Admin') {
+      const isAllAllowed = selectedTeams.every(t => allowedTeams.includes(t));
+      if (!isAllAllowed) {
+        return { success: false, error: "Phát hiện truy cập trái phép team không thuộc quyền quản lý." };
+      }
+    }
+
+    // GHI LOG TRA CỨU (Lọc bỏ token ra khỏi log để bảo mật)
+    const searchParams = { type, selectedTeams, fromYear, fromQuarter, toYear, toQuarter };
+    logAction(email, 'SEARCH', JSON.stringify(searchParams));
+
+    // Mở file DSTC
+    const dstcSs = SpreadsheetApp.openById(DSTC_SHEET_ID);
+    let sheet, allHeaders, data, result = [], filteredHeaders = [];
+
+    if (type === 'ca_nhan') {
+      sheet = dstcSs.getSheetByName("ChiTieu");
+      if (!sheet) throw new Error("Sheet 'ChiTieu' không tồn tại");
+
+      allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
+
+      // Các cột cần lấy: B,C,D,E,F,H,I,J,L,M,O → index: 1,2,3,4,5,7,8,9,11,12,14
+      const colsToKeep = [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14];
+      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+
+      // Cột: D=Team (index 3), E=Quý (index 4), F=Năm (index 5)
+      for (let row of data) {
+        const team = (row[3] || '').toString().trim();
+        const quy = parseInt(row[4]) || 0;
+        const nam = parseInt(row[5]) || 0;
+
+        // Check if row's team matches ANY of the selected teams (using includes logic as before)
+        const teamMatches = selectedTeams.some(t => team.includes(t));
+
+        if (teamMatches && isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) {
+          const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
+          result.push(filteredRow);
+        }
+      }
+
+    } else if (type === 'team') {
+      sheet = dstcSs.getSheetByName("Team");
+      if (!sheet) throw new Error("Sheet 'Team' không tồn tại");
+
+      allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
+
+      // Các cột cần lấy: A,B,C,D,F,G,H,I,J,K,L → index: 0,1,2,3,5,6,7,8,9,10,11
+      const colsToKeep = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11];
+      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+
+      // Cột: C=Team (index 2), B=Quý (index 1), A=Năm (index 0)
+      for (let row of data) {
+        const team = (row[2] || '').toString().trim();
+        const quy = parseInt(row[1]) || 0;
+        const nam = parseInt(row[0]) || 0;
+
+        // Check if row's team matches ANY of the selected teams (exact match)
+        const teamMatches = selectedTeams.includes(team);
+
+        if (teamMatches && isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) {
+          const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
+          result.push(filteredRow);
+        }
+      }
+
+    } else {
+      throw new Error("Loại tra cứu không hợp lệ");
+    }
+
+    // ✅ Trả về headers đã lọc + dữ liệu đã lọc
+    return {
+      success: true,
+      headers: filteredHeaders,
+      data: result
+    };
+
+  } catch (e) {
+    console.error("Lỗi trong getFilteredData:", e);
+    return { success: false, error: "Lỗi truy vấn dữ liệu: " + (e.message || e.toString()) };
+  }
+}
+
+
+// 🔐 LẤY DANH SÁCH PHÂN QUYỀN (Dành cho Admin)
+function getPermissionsList(token) {
+  if (!isAdmin(token)) return { success: false, error: "Bạn không có quyền truy cập chức năng này." };
+
+  try {
+    const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
+    const sheet = ss.getSheetByName("DanhSach");
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: true, data: [] };
+
+    const data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    const result = data.map((row, index) => ({
+      row: index + 2,
+      email: row[0],
+      teams: row[1],
+      colC: row[2],
+      role: row[3] || 'User'
+    }));
+
+    return { success: true, data: result };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// 🔐 LƯU/CẬP NHẬT PHÂN QUYỀN
+function savePermission(token, pData) {
+  if (!isAdmin(token)) return { success: false, error: "Bạn không có quyền thực hiện." };
+
+  try {
+    const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
+    const sheet = ss.getSheetByName("DanhSach");
+    const lastRow = sheet.getLastRow();
+    const data = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+
+    let rowIndex = -1;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0].toString().trim().toLowerCase() === pData.email.trim().toLowerCase()) {
+        rowIndex = i + 2;
+        break;
+      }
+    }
+
+    const rowValues = [pData.email, pData.teams, pData.colC, pData.role];
+
+    if (rowIndex > 0) {
+      sheet.getRange(rowIndex, 1, 1, 4).setValues([rowValues]);
+    } else {
+      sheet.appendRow(rowValues);
+    }
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// 🔐 XÓA PHÂN QUYỀN
+function deletePermission(token, email) {
+  if (!isAdmin(token)) return { success: false, error: "Bạn không có quyền thực hiện." };
+
+  try {
+    const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
+    const sheet = ss.getSheetByName("DanhSach");
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: false, error: "Không tìm thấy dữ liệu." };
+
+    const data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0].toString().trim().toLowerCase() === email.trim().toLowerCase()) {
+        sheet.deleteRow(i + 2);
+        return { success: true };
+      }
+    }
+    return { success: false, error: "Không tìm thấy email cần xóa." };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// 🌍 Lấy danh sách tất cả Team hiện có trong file DSTC (để Admin chọn khi phân quyền)
+function getAllPossibleTeams(token) {
+  if (!isAdmin(token)) return { success: false, error: "Không có quyền." };
+  try {
+    const dstcSs = SpreadsheetApp.openById(DSTC_SHEET_ID);
+    const sheet = dstcSs.getSheetByName("Team");
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: true, teams: [] };
+
+    const data = sheet.getRange(2, 3, lastRow - 1, 1).getValues(); // Cột C là Team
+    const teams = [...new Set(data.map(r => r[0].toString().trim()).filter(t => t))];
+    return { success: true, teams: teams.sort() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+
+// ✅ Hàm so sánh QUÝ/NĂM — chuẩn
+function isInRange(year, quarter, fromYear, fromQuarter, toYear, toQuarter) {
+  const current = year * 10 + quarter;
+  const start = fromYear * 10 + fromQuarter;
+  const end = toYear * 10 + toQuarter;
+  return current >= start && current <= end;
+}
+
+// 📝 GHI LOG HOẠT ĐỘNG
+function logAction(email, action, details) {
+  try {
+    const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
+    let sheet = ss.getSheetByName("Logs");
+    
+    // Tự động tạo sheet Logs nếu chưa tồn tại
+    if (!sheet) {
+      sheet = ss.insertSheet("Logs");
+      // Thêm header
+      sheet.appendRow(["Thời gian", "Email", "Hành động", "Chi tiết"]);
+      // Đóng băng dòng 1 và in đậm header
+      sheet.setFrozenRows(1);
+      sheet.getRange("A1:D1").setFontWeight("bold");
+    }
+
+    // Lấy thời gian hiện tại theo GMT+7
+    const timestamp = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd HH:mm:ss");
+    
+    // Ép kiểu các dữ liệu để an toàn khi ghi vào Sheet
+    const safeEmail = (email || '').toString().trim();
+    const safeAction = (action || '').toString().trim();
+    const safeDetails = (details || '').toString().trim();
+
+    sheet.appendRow([timestamp, safeEmail, safeAction, safeDetails]);
+  } catch (e) {
+    // Không ném lỗi ra ngoài để tránh sập tính năng chính của user
+    console.error("Lỗi khi ghi logAction:", e.message, e);
+  }
+}
+
+// 🧪 HÀM TEST NHANH GHI LOG (Chỉ dùng để test)
+function testLog() {
+  logAction("test@admicro.vn", "TEST_ACTION", "Kiểm tra tính năng ghi log");
+  Logger.log("Đã chạy thử ghi log, vui lòng kiểm tra Sheet 'Logs' trong file KEY_ACCOUNT_SHEET_ID.");
+}
+
+// 🧪 HÀM TEST GỬI OTP & KÍCH HOẠT ỦY QUYỀN GOOGLE MAIL
+function testSendOtp() {
+  const testEmail = "caobuivan@vccorp.vn";
+  Logger.log("=== BẮT ĐẦU TEST GỬI OTP TỚI: " + testEmail + " ===");
+  const res = sendOtp(testEmail);
+  Logger.log("Kết quả hàm sendOtp: " + JSON.stringify(res));
+  Logger.log("Vui lòng kiểm tra Hòm thư Gmail và Sheet 'Logs'!");
+}
