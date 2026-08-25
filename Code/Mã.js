@@ -90,15 +90,26 @@ function sendOtp(email) {
 
     const emailHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email).map(b => (b + 256) % 256).join('');
     const cache = CacheService.getScriptCache();
-
-    // 1. Kiểm tra Cooldown 60s per-email
     const cooldownKey = "CD_" + emailHash;
-    if (cache.get(cooldownKey)) {
-      // Vẫn trong thời gian chờ -> trả success nhưng không gửi lại để tránh spam
+    const globalCountKey = "GLOBAL_OTP_COUNT";
+
+    // 1. Chỉ email đã được cấp quyền mới được dùng quota gửi mail.
+    // Vẫn trả generic success cho email ngoài hệ thống để tránh account enumeration.
+    const { teams, role } = getTeamsForEmail(email);
+    if (teams.length === 0 && role !== 'Admin') {
+      console.info("Email không có quyền trong hệ thống, bỏ qua gửi mail:", email);
       return { success: true };
     }
 
-    // 2. Atomic Global Rate Limit & Quota Guard
+    // 2. Kiểm tra nhanh cooldown trước khi chờ lock.
+    if (cache.get(cooldownKey)) {
+      return {
+        success: false,
+        error: "Mã OTP vừa được gửi. Vui lòng chờ 60 giây trước khi yêu cầu mã mới."
+      };
+    }
+
+    // 3. Atomic reservation cho cooldown và global budget.
     const lock = LockService.getScriptLock();
     let lockAcquired = false;
     try {
@@ -109,16 +120,23 @@ function sendOtp(email) {
 
     if (!lockAcquired) {
       console.warn("sendOtp: Không lấy được script lock, fail-closed an toàn.");
-      return { success: true }; // Generic response
+      return { success: false, error: "Hệ thống đang bận. Vui lòng thử lại sau vài giây." };
     }
 
     try {
+      // Re-check dưới lock để chặn hai request đồng thời cho cùng email.
+      if (cache.get(cooldownKey)) {
+        return {
+          success: false,
+          error: "Mã OTP vừa được gửi. Vui lòng chờ 60 giây trước khi yêu cầu mã mới."
+        };
+      }
+
       // Kiểm tra global budget trong 10 phút
-      const globalCountKey = "GLOBAL_OTP_COUNT";
       let currentGlobalCount = parseInt(cache.get(globalCountKey) || '0', 10);
       if (currentGlobalCount >= GLOBAL_OTP_LIMIT) {
         console.warn("sendOtp: Vượt quá Global Rate Limit (" + GLOBAL_OTP_LIMIT + " OTP/10p).");
-        return { success: true }; // Generic response
+        return { success: false, error: "Hệ thống đã đạt giới hạn gửi OTP. Vui lòng thử lại sau 10 phút." };
       }
 
       // Kiểm tra MailApp remaining quota
@@ -130,33 +148,22 @@ function sendOtp(email) {
       }
       if (remainingQuota <= 5) {
         console.warn("sendOtp: MailApp daily quota sắp cạn (còn " + remainingQuota + ").");
-        return { success: true }; // Generic response
+        return { success: false, error: "Hệ thống tạm hết hạn mức gửi email trong ngày. Vui lòng liên hệ quản trị viên." };
       }
 
-      // Tăng global counter
+      // Reserve budget và cooldown trước khi thả lock để chặn request song song.
       cache.put(globalCountKey, (currentGlobalCount + 1).toString(), GLOBAL_OTP_WINDOW_TTL);
-      // Đặt cooldown cho email này
       cache.put(cooldownKey, "1", OTP_COOLDOWN_TTL);
 
     } finally {
       lock.releaseLock();
     }
 
-    // 3. Sinh OTP 6 chữ số
+    // 4. Sinh OTP 6 chữ số
     const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 100000 → 999999
     const key = "OTP_" + emailHash;
     const expireTime = Date.now() + (OTP_TTL * 1000);
     const props = PropertiesService.getScriptProperties();
-
-    props.setProperty(key, JSON.stringify({ otp: otp, expire: expireTime, attempts: 0 }));
-
-    // 4. Kiểm tra xem email có thuộc quyền xem team nào trong hệ thống không (Allowlist check)
-    // Nếu email không tồn tại trong hệ thống, KHÔNG gửi mail để bảo vệ quota nhưng vẫn trả { success: true }
-    const { teams, role } = getTeamsForEmail(email);
-    if (teams.length === 0 && role !== 'Admin') {
-      console.info("Email không có quyền trong hệ thống, bỏ qua gửi mail:", email);
-      return { success: true };
-    }
 
     // 5. Gửi email
     try {
@@ -178,11 +185,20 @@ function sendOtp(email) {
           </div>
         `
       });
+      // Chỉ tạo OTP hợp lệ sau khi MailApp xác nhận gửi thành công.
+      props.setProperty(key, JSON.stringify({ otp: otp, expire: expireTime, attempts: 0 }));
       console.log("Đã gửi OTP thành công tới:", email);
       logAction(email, "SEND_OTP", "Gửi mã OTP thành công");
     } catch (mailErr) {
       console.error("Lỗi MailApp.sendEmail:", mailErr);
       logAction(email, "SEND_OTP_ERROR", "Lỗi gửi mail: " + (mailErr.message || mailErr.toString()));
+      // Hủy cooldown để user có thể thử lại. Global counter vẫn giữ như số lần gọi MailApp
+      // nhằm bảo vệ quota trong trường hợp Google đã nhận request nhưng client nhận exception.
+      cache.remove(cooldownKey);
+      return {
+        success: false,
+        error: "Không gửi được email OTP: " + (mailErr.message || mailErr.toString())
+      };
     }
 
     return { success: true };
