@@ -387,23 +387,38 @@ function getFilteredData(options) {
       allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
 
-      // Các cột cần lấy: B,C,D,E,F,H,I,J,L,M,O → index: 1,2,3,4,5,7,8,9,11,12,14
-      const colsToKeep = [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14];
-      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+      // 1. Lọc các dòng thỏa mãn Team và Khoảng thời gian trước
+      const matchedRows = [];
+      let hasAnyM4 = false;
 
-      // Cột: D=Team (index 3), E=Quý (index 4), F=Năm (index 5)
+      // Cột: D=Team (index 3), E=Quý (index 4), F=Năm (index 5), K=M4 (index 10)
       for (let row of data) {
         const team = (row[3] || '').toString().trim();
         const quy = parseInt(row[4]) || 0;
         const nam = parseInt(row[5]) || 0;
 
-        // Check if row's team matches ANY of the selected teams (using includes logic as before)
         const teamMatches = selectedTeams.some(t => team.includes(t));
-
         if (teamMatches && isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) {
-          const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
-          result.push(filteredRow);
+          matchedRows.push(row);
+          if (!hasAnyM4 && hasValidM4(row[10])) {
+            hasAnyM4 = true;
+          }
         }
+      }
+
+      // 2. Xác định danh sách cột cần lấy động theo sự hiện diện của M4
+      // Nếu có M4: B,C,D,E,F,H,I,J,K,L,M,O → index: 1,2,3,4,5,7,8,9,10,11,12,14
+      // Nếu không có M4: B,C,D,E,F,H,I,J,L,M,O → index: 1,2,3,4,5,7,8,9,11,12,14
+      const colsToKeep = hasAnyM4
+        ? [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14]
+        : [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14];
+
+      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+
+      // 3. Trích xuất dữ liệu các cột cần giữ
+      for (let row of matchedRows) {
+        const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
+        result.push(filteredRow);
       }
 
     } else if (type === 'team') {
@@ -413,23 +428,38 @@ function getFilteredData(options) {
       allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
 
-      // Các cột cần lấy: A,B,C,D,F,G,H,I,J,K,L → index: 0,1,2,3,5,6,7,8,9,10,11
-      const colsToKeep = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11];
-      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+      // 1. Lọc các dòng thỏa mãn Team và Khoảng thời gian trước
+      const matchedRows = [];
+      let hasAnyM4 = false;
 
-      // Cột: C=Team (index 2), B=Quý (index 1), A=Năm (index 0)
+      // Cột: C=Team (index 2), B=Quý (index 1), A=Năm (index 0), J=Muc 4 (index 9)
       for (let row of data) {
         const team = (row[2] || '').toString().trim();
         const quy = parseInt(row[1]) || 0;
         const nam = parseInt(row[0]) || 0;
 
-        // Check if row's team matches ANY of the selected teams (exact match)
         const teamMatches = selectedTeams.includes(team);
-
         if (teamMatches && isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) {
-          const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
-          result.push(filteredRow);
+          matchedRows.push(row);
+          if (!hasAnyM4 && hasValidM4(row[9])) {
+            hasAnyM4 = true;
+          }
         }
+      }
+
+      // 2. Xác định danh sách cột cần lấy động theo sự hiện diện của M4
+      // Nếu có M4: A,B,C,D,F,G,H,I,J,K,L → index: 0,1,2,3,5,6,7,8,9,10,11
+      // Nếu không có M4: A,B,C,D,F,G,H,I,K,L → index: 0,1,2,3,5,6,7,8,10,11 (bỏ index 9)
+      const colsToKeep = hasAnyM4
+        ? [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11]
+        : [0, 1, 2, 3, 5, 6, 7, 8, 10, 11];
+
+      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+
+      // 3. Trích xuất dữ liệu các cột cần giữ
+      for (let row of matchedRows) {
+        const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
+        result.push(filteredRow);
       }
 
     } else {
@@ -547,6 +577,17 @@ function getAllPossibleTeams(token) {
   }
 }
 
+
+// 🔍 Kiểm tra giá trị M4 hợp lệ (khác rỗng, khác null/undefined, khác 0 và > 0)
+function hasValidM4(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'number') return value > 0;
+  const str = String(value).trim();
+  if (str === '' || str === '0') return false;
+  const num = parseFloat(str.replace(/,/g, ''));
+  if (!isNaN(num)) return num > 0;
+  return true;
+}
 
 // ✅ Hàm so sánh QUÝ/NĂM — chuẩn
 function isInRange(year, quarter, fromYear, fromQuarter, toYear, toQuarter) {
