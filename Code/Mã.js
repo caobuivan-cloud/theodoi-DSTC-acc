@@ -896,10 +896,12 @@ function logAction(email, action, details) {
     // 1. Luôn ghi log vào Google Cloud Logging (tốc độ 0ms, lưu vết audit tự động)
     console.info(`[AUDIT ${safeAction}] ${safeEmail}: ${safeDetails}`);
 
-    // 2. Tối ưu hiệu năng: Đối với SEARCH (tra cứu thường xuyên), không gọi appendRow vào Sheet Logs
-    // để tránh nghẽn luồng truy vấn (tiết kiệm 2 - 3 giây độ trễ cho người dùng).
+    // 2. Tối ưu hiệu năng & Đo đếm tần suất sử dụng:
+    // Đối với SEARCH (tra cứu thực tế): Ghi nhận vào bảng 'DailyUsage' để thống kê số lượt sử dụng mỗi ngày của từng user.
+    // Không ghi từng dòng vào Sheet Logs để tránh phình dữ liệu và nghẽn luồng.
     // Các sự kiện bảo mật cốt lõi (LOGIN_OTP, LOGIN_GOOGLE, LOGIN_REJECTED...) vẫn ghi bền vững vào Sheet Logs.
     if (safeAction === 'SEARCH') {
+      recordDailyUsage(safeEmail);
       return;
     }
 
@@ -924,6 +926,95 @@ function logAction(email, action, details) {
     // Không ném lỗi ra ngoài để tránh sập tính năng chính của user
     console.error("Lỗi khi ghi logAction:", e.message, e);
   }
+}
+
+// 📊 GHI NHẬN TẦN SUẤT SỬ DỤNG HÀNG NGÀY (Daily Usage Counter)
+function recordDailyUsage(email) {
+  try {
+    const cleanEmail = (email || '').toString().trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    const lock = LockService.getScriptLock();
+    let lockAcquired = false;
+    try {
+      lockAcquired = lock.tryLock(3000); // Chờ tối đa 3 giây
+    } catch (e) {
+      console.warn("recordDailyUsage lock warning:", e);
+    }
+
+    try {
+      const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
+      let sheet = ss.getSheetByName("DailyUsage");
+
+      // Tự động tạo sheet DailyUsage nếu chưa tồn tại
+      if (!sheet) {
+        sheet = ss.insertSheet("DailyUsage");
+        sheet.appendRow(["Ngày", "Email", "Số lượt tra cứu", "Lần đầu truy cập", "Lần cuối truy cập"]);
+        sheet.setFrozenRows(1);
+        sheet.getRange("A1:E1").setFontWeight("bold");
+        sheet.getRange("A:A").setHorizontalAlignment("center");
+        sheet.getRange("C:E").setHorizontalAlignment("center");
+      }
+
+      const now = new Date();
+      const todayStr = Utilities.formatDate(now, "GMT+7", "yyyy-MM-dd");
+      const timeStr = Utilities.formatDate(now, "GMT+7", "HH:mm:ss");
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) {
+        // Sheet mới tinh chỉ có dòng tiêu đề -> ghi nhận dòng đầu tiên
+        sheet.appendRow([todayStr, cleanEmail, 1, timeStr, timeStr]);
+        return;
+      }
+
+      // Đọc 3 cột đầu: [Ngày, Email, Số lượt tra cứu]
+      const values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+      let foundRowIndex = -1;
+      let currentCount = 0;
+
+      // Quét ngược từ dưới lên vì các bản ghi trong ngày hiện tại thường nằm ở cuối bảng
+      for (let i = values.length - 1; i >= 0; i--) {
+        const rowDateVal = values[i][0];
+        const rowDateStr = (rowDateVal instanceof Date)
+          ? Utilities.formatDate(rowDateVal, "GMT+7", "yyyy-MM-dd")
+          : String(rowDateVal || '').trim();
+        const rowEmail = String(values[i][1] || '').trim().toLowerCase();
+
+        if (rowDateStr === todayStr && rowEmail === cleanEmail) {
+          foundRowIndex = i + 2; // Số thứ tự dòng thực tế trên Sheet (1-based, bắt đầu từ row 2)
+          currentCount = Number(values[i][2]) || 0;
+          break;
+        }
+      }
+
+      if (foundRowIndex !== -1) {
+        // Đã có bản ghi của user trong ngày -> Tăng số lượt (+1) và cập nhật giờ truy cập cuối
+        sheet.getRange(foundRowIndex, 3).setValue(currentCount + 1);
+        sheet.getRange(foundRowIndex, 5).setValue(timeStr);
+      } else {
+        // Lần đầu tiên user tra cứu trong ngày -> Thêm dòng mới
+        sheet.appendRow([todayStr, cleanEmail, 1, timeStr, timeStr]);
+      }
+    } finally {
+      if (lockAcquired) {
+        try { lock.releaseLock(); } catch (e) {}
+      }
+    }
+  } catch (err) {
+    // Không ném lỗi ra ngoài để bảo đảm luồng tra cứu chính của user không bao giờ bị gián đoạn
+    console.error("Lỗi trong recordDailyUsage:", err.message, err);
+  }
+}
+
+// 🧪 HÀM TEST GHI NHẬN TẦN SUẤT SỬ DỤNG DAILY USAGE
+function testRecordDailyUsage() {
+  const testEmail = "test@vccorp.vn";
+  Logger.log("=== TEST GHI NHẬN TẦN SUẤT TRUY CẬP CHO: " + testEmail + " ===");
+  recordDailyUsage(testEmail);
+  Logger.log("Lần 1: Đã ghi nhận (kỳ vọng: tạo sheet DailyUsage nếu chưa có, lượt = 1)");
+  recordDailyUsage(testEmail);
+  Logger.log("Lần 2: Đã ghi nhận (kỳ vọng: tăng lượt lên 2, cập nhật Lần cuối truy cập)");
+  Logger.log("Vui lòng kiểm tra sheet 'DailyUsage' trong file KEY_ACCOUNT_SHEET_ID!");
 }
 
 // 🧪 HÀM TEST NHANH GHI LOG (Chỉ dùng để test)
