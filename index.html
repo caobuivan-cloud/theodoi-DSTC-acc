@@ -1407,8 +1407,11 @@
           if (ssoSection) ssoSection.style.display = 'block';
           if (divider) divider.style.display = 'flex';
 
-          // Hiển thị Google One Tap nếu khả dụng
-          google.accounts.id.prompt();
+          // Chỉ hiển thị Google One Tap nếu chưa có phiên đăng nhập và đang ở màn hình đăng nhập
+          const hasSession = Boolean(localStorage.getItem('dstc_token') || sessionStorage.getItem('dstc_token'));
+          if (!hasSession && els.stepEmail && els.stepEmail.classList.contains('active')) {
+            google.accounts.id.prompt(() => {});
+          }
         } catch (err) {
           console.warn("Lỗi khởi tạo Google Identity Services:", err);
           if (ssoSection) ssoSection.style.display = 'none';
