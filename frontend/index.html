@@ -8,6 +8,8 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
   <!-- 🔑 Thêm SheetJS CDN để xuất Excel -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <!-- 🔑 Thêm Google Identity Services SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -744,6 +746,47 @@
       font-weight: 600;
       margin-left: 6px;
     }
+
+    /* Auth Divider & Remember Me Styles */
+    .auth-divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      margin: 22px 0 18px 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .auth-divider::before,
+    .auth-divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .auth-divider span {
+      padding: 0 12px;
+    }
+
+    .remember-me-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      user-select: none;
+    }
+
+    .remember-me-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -757,22 +800,48 @@
             <path d="M11 10h2v6h-2zM11 7h2v1h-2z" fill="white" />
           </svg>
         </div>
-        <div>
+        <div style="flex:1">
           <h1>Tra cứu DSTC Account— Admicro</h1>
           <p>Xác thực qua email & OTP để truy cập dữ liệu team được cấp quyền.</p>
+        </div>
+        <!-- Logout & User Info Button (hiển thị khi đã đăng nhập) -->
+        <div id="user-header-info" style="display:none;align-items:center;gap:10px">
+          <span id="header-user-email" style="font-size:12px;opacity:0.95;background:rgba(255,255,255,0.15);padding:4px 8px;border-radius:4px"></span>
+          <button id="logout-btn" class="btn sm" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.4)">Đăng xuất</button>
         </div>
       </div>
 
       <div class="content">
-        <!-- Step 1: Nhập email -->
+        <!-- Step 1: Xác thực tài khoản (Google SSO hoặc Email OTP) -->
         <div id="step-email" class="step active">
           <h2>🔐 Xác thực tài khoản</h2>
-          <p>Vui lòng nhập email công ty của bạn để nhận mã OTP.</p>
+          <p>Đăng nhập nhanh bằng tài khoản Google hoặc nhận mã OTP qua Email.</p>
+
+          <!-- 1. Google Sign-In Container -->
+          <div id="google-sso-section" style="margin-bottom: 8px;">
+            <div id="google-btn-container" style="display:flex;justify-content:center;min-height:44px"></div>
+          </div>
+
+          <!-- Đường kẻ chia HOẶC -->
+          <div id="auth-divider" class="auth-divider">
+            <span>HOẶC TIẾP TỤC BẰNG EMAIL OTP</span>
+          </div>
+
+          <!-- 2. Form OTP -->
           <div>
-            <label for="auth-email">Email</label>
+            <label for="auth-email">Email công ty</label>
             <input id="auth-email" class="input" type="email" placeholder="Ví dụ: user@admicro.vn" autocomplete="off" />
             <div id="email-status" class="status hidden" role="status" aria-live="polite"></div>
           </div>
+
+          <!-- Checkbox Ghi nhớ đăng nhập -->
+          <div style="margin-top: 14px;">
+            <label class="remember-me-label">
+              <input type="checkbox" id="auth-remember-me" checked>
+              <span>Ghi nhớ đăng nhập trên thiết bị này (30 ngày)</span>
+            </label>
+          </div>
+
           <div class="controls" style="margin-top:20px">
             <button id="send-otp-btn" class="btn">Gửi mã OTP</button>
           </div>
@@ -1009,6 +1078,9 @@
       // 🔗 URL Endpoint: Gọi qua Vercel Proxy /api/gas để triệt tiêu 100% CORS
       const GAS_URL = "/api/gas";
 
+      // 🔑 Google OAuth 2.0 Client ID
+      const GOOGLE_CLIENT_ID = "37756221918-fp4k2sm04mc7ep9jkmbjnocjstjnnn43.apps.googleusercontent.com";
+
       // 🚀 Helper gọi REST API tới Google Apps Script qua Proxy
       async function callGAS(action, params = {}) {
         try {
@@ -1082,7 +1154,14 @@
         adminTeamListContainer: document.getElementById('admin-team-list-container'),
         adminTeamSearchInput: document.getElementById('admin-team-search-input'),
         adminTeamSelectedText: document.getElementById('admin-team-selected-text'),
-        adminTeamCount: document.getElementById('admin-team-count')
+        adminTeamCount: document.getElementById('admin-team-count'),
+        // User & Auth Header Elements
+        userHeaderInfo: document.getElementById('user-header-info'),
+        headerUserEmail: document.getElementById('header-user-email'),
+        logoutBtn: document.getElementById('logout-btn'),
+        authRememberMe: document.getElementById('auth-remember-me'),
+        googleSsoSection: document.getElementById('google-sso-section'),
+        authDivider: document.getElementById('auth-divider')
       };
 
       // ======================
@@ -1127,6 +1206,177 @@
           minimumFractionDigits: isInt ? 0 : 2,
           maximumFractionDigits: 2
         }).format(num);
+      }
+
+      // ======================
+      // GOOGLE SSO & SESSION HELPERS
+      // ======================
+      function initGoogleSignIn() {
+        const ssoSection = els.googleSsoSection;
+        const divider = els.authDivider;
+
+        // Graceful Degradation: Nếu chưa cấu hình Client ID thật hoặc SDK lỗi tải
+        if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID") || typeof google === 'undefined' || !google.accounts) {
+          if (ssoSection) ssoSection.style.display = 'none';
+          if (divider) divider.style.display = 'none';
+          return;
+        }
+
+        try {
+          google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+
+          const btnContainer = document.getElementById('google-btn-container');
+          if (btnContainer) {
+            btnContainer.innerHTML = '';
+            google.accounts.id.renderButton(btnContainer, {
+              theme: 'outline',
+              size: 'large',
+              type: 'standard',
+              text: 'signin_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 320
+            });
+          }
+
+          if (ssoSection) ssoSection.style.display = 'block';
+          if (divider) divider.style.display = 'flex';
+
+          // Hiển thị Google One Tap nếu khả dụng
+          google.accounts.id.prompt();
+        } catch (err) {
+          console.warn("Lỗi khởi tạo Google Identity Services:", err);
+          if (ssoSection) ssoSection.style.display = 'none';
+          if (divider) divider.style.display = 'none';
+        }
+      }
+
+      // Xử lý Google ID Token từ Google Sign-In
+      async function handleGoogleCredentialResponse(response) {
+        if (!response || !response.credential) return;
+        const rememberMe = els.authRememberMe ? els.authRememberMe.checked : true;
+
+        showStatus(els.emailStatus, 'success', 'Đang xác thực tài khoản Google...');
+        try {
+          const res = await callGAS('verifyGoogleToken', { credential: response.credential, rememberMe });
+          if (res && res.valid) {
+            hideStatus(els.emailStatus);
+            saveSessionToStorage(res.token, res.email, rememberMe);
+            hydrateUserSession(res);
+            showStep('step-query');
+          } else {
+            showStatus(els.emailStatus, 'error', res?.error || 'Tài khoản Google không có quyền truy cập.');
+          }
+        } catch (err) {
+          console.error("Lỗi xác thực Google:", err);
+          showStatus(els.emailStatus, 'error', 'Lỗi kết nối khi xác thực Google.');
+        }
+      }
+
+      // Lưu token vào storage tương ứng theo cờ rememberMe
+      function saveSessionToStorage(token, email, rememberMe) {
+        clearSessionStorage();
+        const storage = rememberMe ? localStorage : sessionStorage;
+        try {
+          storage.setItem('dstc_token', token);
+          storage.setItem('dstc_email', email);
+          storage.setItem('dstc_remember', rememberMe ? '1' : '0');
+        } catch (e) {
+          console.warn("Lỗi ghi session storage:", e);
+        }
+      }
+
+      function clearSessionStorage() {
+        try {
+          localStorage.removeItem('dstc_token');
+          localStorage.removeItem('dstc_email');
+          localStorage.removeItem('dstc_remember');
+          sessionStorage.removeItem('dstc_token');
+          sessionStorage.removeItem('dstc_email');
+          sessionStorage.removeItem('dstc_remember');
+        } catch (e) {}
+      }
+
+      // Hydrate toàn bộ state người dùng từ phản hồi backend
+      function hydrateUserSession(res) {
+        CURRENT_TOKEN = res.token || '';
+        CURRENT_EMAIL = res.email || '';
+        ALLOWED_TEAMS = Array.isArray(res.teams) ? res.teams : [];
+        CURRENT_ROLE = res.role || 'User';
+
+        if (els.headerUserEmail) {
+          els.headerUserEmail.textContent = CURRENT_EMAIL;
+        }
+        if (els.userHeaderInfo) {
+          els.userHeaderInfo.style.display = 'flex';
+          els.userHeaderInfo.classList.remove('hidden');
+        }
+
+        if (CURRENT_ROLE === 'Admin') {
+          if (els.adminEntrance) els.adminEntrance.classList.add('active');
+        } else {
+          if (els.adminEntrance) els.adminEntrance.classList.remove('active');
+        }
+
+        populateTeamSelect();
+      }
+
+      // Auto-login khi tải trang
+      async function checkActiveSession() {
+        const token = localStorage.getItem('dstc_token') || sessionStorage.getItem('dstc_token');
+        if (!token) {
+          showStep('step-email');
+          initGoogleSignIn();
+          return;
+        }
+
+        try {
+          const res = await callGAS('verifySession', { token });
+          if (res && res.valid) {
+            hydrateUserSession(res);
+            showStep('step-query');
+          } else {
+            clearSessionStorage();
+            showStep('step-email');
+            initGoogleSignIn();
+          }
+        } catch (err) {
+          console.warn("Lỗi checkActiveSession:", err);
+          showStep('step-email');
+          initGoogleSignIn();
+        }
+      }
+
+      // Đăng xuất an toàn
+      async function handleLogout() {
+        const token = CURRENT_TOKEN || localStorage.getItem('dstc_token') || sessionStorage.getItem('dstc_token');
+        clearSessionStorage();
+        CURRENT_TOKEN = '';
+        CURRENT_EMAIL = '';
+        ALLOWED_TEAMS = [];
+        CURRENT_ROLE = 'User';
+
+        if (els.userHeaderInfo) {
+          els.userHeaderInfo.style.display = 'none';
+          els.userHeaderInfo.classList.add('hidden');
+        }
+        if (els.adminEntrance) {
+          els.adminEntrance.classList.remove('active');
+        }
+
+        showStep('step-email');
+        initGoogleSignIn();
+
+        if (token) {
+          try {
+            await callGAS('logout', { token });
+          } catch (e) {}
+        }
       }
 
       // ======================
@@ -1189,18 +1439,12 @@
           els.verifyOtpBtn.textContent = 'Đang xác minh...';
 
           try {
-            const res = await callGAS('verifyOtp', { email: CURRENT_EMAIL, otp });
+            const rememberMe = els.authRememberMe ? els.authRememberMe.checked : true;
+            const res = await callGAS('verifyOtp', { email: CURRENT_EMAIL, otp, rememberMe });
 
             if (res && res.valid) {
-              CURRENT_TOKEN = res.token; // 💾 Lưu token
-              ALLOWED_TEAMS = Array.isArray(res.teams) ? res.teams : [];
-              CURRENT_ROLE = res.role || 'User';
-
-              if (CURRENT_ROLE === 'Admin') {
-                els.adminEntrance.classList.add('active');
-              }
-
-              populateTeamSelect();
+              saveSessionToStorage(res.token, res.email, rememberMe);
+              hydrateUserSession(res);
               showStep('step-query');
             } else {
               showStatus(els.otpStatus, 'error', res?.error || 'OTP không hợp lệ.');
@@ -1258,19 +1502,27 @@
           return;
         }
 
-        filteredTeams.forEach(team => {
+        filteredTeams.forEach((team, idx) => {
           const isSelected = SELECTED_TEAMS.includes(team);
           const div = document.createElement('div');
           div.className = 'team-item' + (isSelected ? ' selected' : '');
-          div.innerHTML = `
-            <input type="checkbox" id="team-cb-${team}" ${isSelected ? 'checked' : ''}>
-            <label for="team-cb-${team}">${team}</label>
-          `;
+          
+          // EFR-01 Hardening: Tránh innerHTML, dùng textContent để chống XSS qua tên team
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.id = 'team-cb-' + idx;
+          cb.checked = isSelected;
+
+          const lbl = document.createElement('label');
+          lbl.htmlFor = cb.id;
+          lbl.textContent = team;
+
+          div.appendChild(cb);
+          div.appendChild(lbl);
 
           // Click vào item để toggle
           div.onclick = (e) => {
             if (e.target.tagName !== 'INPUT') {
-              const cb = div.querySelector('input');
               cb.checked = !cb.checked;
             }
             toggleTeamSelection(team);
@@ -1626,17 +1878,26 @@
           return;
         }
 
-        filteredTeams.forEach(team => {
+        filteredTeams.forEach((team, idx) => {
           const isSelected = ADMIN_SELECTED_TEAMS.includes(team);
           const div = document.createElement('div');
           div.className = 'team-item' + (isSelected ? ' selected' : '');
-          div.innerHTML = `
-              <input type="checkbox" id="admin-team-cb-${team}" ${isSelected ? 'checked' : ''}>
-              <label for="admin-team-cb-${team}">${team}</label>
-            `;
+
+          // EFR-01 Hardening: Tránh innerHTML, dùng textContent để chống XSS qua tên team
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.id = 'admin-team-cb-' + idx;
+          cb.checked = isSelected;
+
+          const lbl = document.createElement('label');
+          lbl.htmlFor = cb.id;
+          lbl.textContent = team;
+
+          div.appendChild(cb);
+          div.appendChild(lbl);
+
           div.onclick = (e) => {
             if (e.target.tagName !== 'INPUT') {
-              const cb = div.querySelector('input');
               cb.checked = !cb.checked;
             }
             toggleAdminTeamSelection(team);
@@ -1877,7 +2138,10 @@
       // ======================
       document.addEventListener('DOMContentLoaded', () => {
         console.log('✅ Web App loaded. API Endpoint:', GAS_URL);
-        showStep('step-email');
+        if (els.logoutBtn) {
+          els.logoutBtn.addEventListener('click', handleLogout);
+        }
+        checkActiveSession();
       });
 
       document.addEventListener('keypress', e => {
