@@ -9,7 +9,7 @@
   <!-- 🔑 Thêm SheetJS CDN để xuất Excel -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <!-- 🔑 Thêm Google Identity Services SDK -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleSignIn()"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -43,7 +43,7 @@
       font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
       background: linear-gradient(180deg, #f7fbff 0%, #f2f8ff 100%);
       color: #0f172a;
-      padding: 16px;
+      padding: 10px 16px;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -62,27 +62,29 @@
     .hero {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 20px 24px;
+      gap: 12px;
+      padding: 8px 18px;
       background: linear-gradient(90deg, var(--primary), var(--primary-600));
       color: white;
     }
 
     .hero h1 {
       margin: 0;
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.2px;
+      line-height: 1.2;
     }
 
     .hero p {
-      margin: 0;
-      font-size: 13px;
-      opacity: 0.95;
+      margin: 2px 0 0 0;
+      font-size: 11.5px;
+      opacity: 0.92;
+      line-height: 1.2;
     }
 
     .content {
-      padding: 20px;
+      padding: 12px 18px;
     }
 
     label {
@@ -230,6 +232,10 @@
       cursor: pointer;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     .step {
       display: none;
     }
@@ -238,63 +244,127 @@
       display: block;
     }
 
-    /* Date range layout */
-    .row.date-range-flex {
+    /* Khu vực 1: Cân đối Loại tra cứu & Chọn team */
+    .query-select-row {
       display: flex;
-      gap: 12px;
-      align-items: flex-end;
-      flex-wrap: nowrap;
-      margin-top: 8px;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
     }
 
-    .date-block {
+    .query-type-col {
+      flex: 0 0 220px;
+      width: 220px;
+    }
+
+    .query-team-col {
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .query-type-col select.input,
+    .team-selector-display {
+      height: 42px;
+      box-sizing: border-box;
+    }
+
+    /* Khu vực 2: Đưa Thời gian & Tìm kiếm lên 1 dòng */
+    .query-actions-row {
       display: flex;
-      flex-direction: column;
-      min-width: 80px;
-      max-width: 120px;
-      flex: 0 0 90px;
-    }
-
-    .search-btn-block {
-      display: flex;
-      flex-direction: column;
-      flex: 0 0 90px;
-      min-width: 80px;
-      max-width: 120px;
-      align-self: flex-end;
-    }
-
-    #search-btn {
-      width: 100%;
-      font-size: 14px;
-      padding: 8px 0;
-    }
-
-    #search-box {
-      margin-top: 14px;
-    }
-
-    .search-row {
-      display: flex;
-      gap: 8px;
       align-items: center;
-    }
-
-    #result-search {
-      min-width: 220px;
-      flex: 1 1 220px;
-      max-width: 300px;
-      padding: 10px 12px;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: #f8fafc;
+      padding: 7px 12px;
       border-radius: 8px;
       border: 1px solid var(--border);
-      font-size: 15px;
     }
 
-    #search-box .btn.ghost {
-      min-width: 0;
-      width: auto;
-      padding: 8px 12px;
-      font-size: 14px;
+    .time-filter-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .time-main-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 0;
+      white-space: nowrap;
+    }
+
+    .time-inputs-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .time-tag-lbl {
+      font-size: 12.5px;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .compact-select {
+      width: 66px !important;
+      height: 35px !important;
+      padding: 4px 8px !important;
+      font-size: 13.5px !important;
+    }
+
+    .compact-year {
+      width: 76px !important;
+      height: 35px !important;
+      padding: 4px 8px !important;
+      font-size: 13.5px !important;
+    }
+
+    .btn-search {
+      height: 35px !important;
+      padding: 0 16px !important;
+      font-size: 13px !important;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-box-inline {
+      margin-left: auto;
+    }
+
+    .search-inner-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .search-inner-wrap .search-input {
+      width: 270px;
+      height: 35px;
+      padding: 4px 10px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: white;
+    }
+
+    .search-inner-wrap .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    .btn-clear {
+      height: 35px !important;
+      padding: 0 10px !important;
+      font-size: 12.5px !important;
+      display: inline-flex;
+      align-items: center;
     }
 
     .table-wrap {
@@ -351,22 +421,34 @@
       color: var(--muted);
     }
 
-    @media (max-width: 880px) {
-      .row.date-range-flex {
+    @media (max-width: 960px) {
+      .query-actions-row {
         flex-direction: column;
         align-items: stretch;
       }
 
-      .date-block,
-      .search-btn-block {
-        max-width: 100%;
+      .search-box-inline {
+        margin-left: 0;
         width: 100%;
-        flex: 1 1 100%;
       }
 
-      #result-search {
-        min-width: 0;
+      .search-inner-wrap {
+        width: 100%;
+      }
+
+      .search-inner-wrap .search-input {
         flex: 1;
+        width: auto;
+      }
+
+      .query-type-col {
+        flex: 1 1 100%;
+        width: 100%;
+      }
+
+      .query-team-col {
+        flex: 1 1 100%;
+        width: 100%;
       }
     }
 
@@ -794,8 +876,8 @@
   <div class="wrap">
     <div class="card">
       <div class="hero">
-        <div style="display:flex;align-items:center;gap:12px">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:24px;height:24px">
             <path d="M12 2L3 5v6c0 5 3.8 9.8 9 11 5.2-1.2 9-6 9-11V5l-9-3z" fill="rgba(255,255,255,0.18)" />
             <path d="M11 10h2v6h-2zM11 7h2v1h-2z" fill="white" />
           </svg>
@@ -804,10 +886,12 @@
           <h1>Tra cứu DSTC Account— Admicro</h1>
           <p>Xác thực qua email & OTP để truy cập dữ liệu team được cấp quyền.</p>
         </div>
-        <!-- Logout & User Info Button (hiển thị khi đã đăng nhập) -->
-        <div id="user-header-info" style="display:none;align-items:center;gap:10px">
-          <span id="header-user-email" style="font-size:12px;opacity:0.95;background:rgba(255,255,255,0.15);padding:4px 8px;border-radius:4px"></span>
-          <button id="logout-btn" class="btn sm" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.4)">Đăng xuất</button>
+        <!-- Logout, Admin Settings & User Info (hiển thị khi đã đăng nhập) -->
+        <div id="user-header-info" style="display:none;align-items:center;gap:8px">
+          <span id="header-user-role-badge" style="display:none;background:rgba(255,255,255,0.25);font-size:11px;font-weight:600;padding:3px 8px;border-radius:12px;white-space:nowrap">🛡️ Admin</span>
+          <span id="header-user-email" style="font-size:12px;opacity:0.95;background:rgba(255,255,255,0.15);padding:4px 8px;border-radius:4px;white-space:nowrap"></span>
+          <button id="header-admin-btn" class="btn sm" onclick="showAdminSection()" style="display:none;align-items:center;gap:5px;background:rgba(255,255,255,0.22);color:white;border:1px solid rgba(255,255,255,0.4);cursor:pointer;padding:5px 10px;font-size:12px;font-weight:600" title="Cài đặt và quản lý phân quyền">⚙️ Cài đặt phân quyền</button>
+          <button id="logout-btn" class="btn sm" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.4);padding:5px 10px;font-size:12px">Đăng xuất</button>
         </div>
       </div>
 
@@ -866,14 +950,11 @@
 
         <!-- Step 3: Chọn team & tra cứu -->
         <div id="step-query" class="step">
-          <div id="admin-entrance" class="admin-only" style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span>🛡️ Bạn đang ở quyền <strong>Quản trị viên</strong></span>
-              <button class="btn sm" onclick="showAdminSection()">⚙️ Quản lý phân quyền</button>
-            </div>
-          </div>
-          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <div style="flex:1;min-width:220px">
+          <div id="admin-entrance" class="admin-only" style="display:none"></div>
+          
+          <!-- Khu vực 1: Loại tra cứu & Chọn team (đã cân đối tỷ lệ) -->
+          <div class="query-select-row">
+            <div class="query-type-col">
               <label for="type">1. Loại tra cứu</label>
               <select id="type" class="input">
                 <option value="">-- Chọn --</option>
@@ -881,7 +962,7 @@
                 <option value="team">Tổng team</option>
               </select>
             </div>
-            <div style="flex:1;min-width:220px">
+            <div class="query-team-col">
               <label>2. Chọn team</label>
               <div class="team-selector-wrapper">
                 <div id="team-selector-display" class="team-selector-display" tabindex="0" onclick="openTeamModal()"
@@ -900,46 +981,39 @@
             </div>
           </div>
 
-          <div id="date-range" class="hidden" style="margin-top:16px">
-            <label>3. Khoảng thời gian</label>
-            <div class="row date-range-flex">
-              <div class="date-block">
-                <label for="from-quarter" class="muted">Từ Quý</label>
-                <select id="from-quarter" class="input">
-                  <option value="1">Q1</option>
-                  <option value="2">Q2</option>
-                  <option value="3">Q3</option>
-                  <option value="4">Q4</option>
-                </select>
+          <!-- Khu vực 2: Thời gian & Tìm trong kết quả (1 dòng tiết kiệm diện tích) -->
+          <div id="date-range" class="hidden" style="margin-top:12px">
+            <div class="query-actions-row">
+              <div class="time-filter-inline">
+                <span class="time-main-label">3. Khoảng thời gian:</span>
+                <div class="time-inputs-group">
+                  <span class="time-tag-lbl">Từ</span>
+                  <select id="from-quarter" class="input compact-select">
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                  </select>
+                  <input id="from-year" type="number" min="2020" value="2024" class="input compact-year" />
+                  
+                  <span class="time-tag-lbl" style="margin-left:4px">Đến</span>
+                  <select id="to-quarter" class="input compact-select">
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                  </select>
+                  <input id="to-year" type="number" min="2020" value="2024" class="input compact-year" />
+                </div>
+                <button id="search-btn" class="btn btn-search" disabled>🔍 Tra cứu</button>
               </div>
-              <div class="date-block">
-                <label for="from-year" class="muted">Năm</label>
-                <input id="from-year" type="number" min="2020" value="2024" class="input" />
-              </div>
-              <div class="date-block">
-                <label for="to-quarter" class="muted">Đến Quý</label>
-                <select id="to-quarter" class="input">
-                  <option value="1">Q1</option>
-                  <option value="2">Q2</option>
-                  <option value="3">Q3</option>
-                  <option value="4">Q4</option>
-                </select>
-              </div>
-              <div class="date-block">
-                <label for="to-year" class="muted">Năm</label>
-                <input id="to-year" type="number" min="2020" value="2024" class="input" />
-              </div>
-              <div class="search-btn-block">
-                <button id="search-btn" class="btn" disabled>🔍 Tra cứu</button>
-              </div>
-            </div>
-          </div>
 
-          <div id="search-box" class="hidden" style="margin-top:14px">
-            <label for="result-search">🔎 Tìm trong kết quả</label>
-            <div class="search-row">
-              <input id="result-search" class="search-input" placeholder="Gõ từ khóa (tên, mã, số tiền...)" />
-              <button class="btn ghost" onclick="clearSearch()">Xóa</button>
+              <div id="search-box" class="search-box-inline hidden">
+                <div class="search-inner-wrap">
+                  <input id="result-search" class="search-input" placeholder="🔎 Tìm trong kết quả (tên, mã, số tiền...)" />
+                  <button class="btn ghost btn-clear" onclick="clearSearch()" title="Xóa từ khóa tìm kiếm">Xóa</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1211,14 +1285,28 @@
       // ======================
       // GOOGLE SSO & SESSION HELPERS
       // ======================
+      let googleInitAttempts = 0;
       function initGoogleSignIn() {
         const ssoSection = els.googleSsoSection;
         const divider = els.authDivider;
 
         // Graceful Degradation: Nếu chưa cấu hình Client ID thật hoặc SDK lỗi tải
-        if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID") || typeof google === 'undefined' || !google.accounts) {
+        if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
           if (ssoSection) ssoSection.style.display = 'none';
           if (divider) divider.style.display = 'none';
+          return;
+        }
+
+        // Nếu Google SDK chưa tải xong từ CDN, tự động thử lại mỗi 100ms (tối đa 30 lần = 3s)
+        if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+          googleInitAttempts++;
+          if (googleInitAttempts < 30) {
+            setTimeout(initGoogleSignIn, 100);
+          } else {
+            console.warn("Google SDK không tải được sau 3s");
+            if (ssoSection) ssoSection.style.display = 'none';
+            if (divider) divider.style.display = 'none';
+          }
           return;
         }
 
@@ -1255,6 +1343,8 @@
           if (divider) divider.style.display = 'none';
         }
       }
+      window.initGoogleSignIn = initGoogleSignIn;
+      window.handleGoogleCredentialResponse = handleGoogleCredentialResponse;
 
       // Xử lý Google ID Token từ Google Sign-In
       async function handleGoogleCredentialResponse(response) {
@@ -1317,10 +1407,16 @@
           els.userHeaderInfo.classList.remove('hidden');
         }
 
+        const headerAdminBtn = document.getElementById('header-admin-btn');
+        const headerRoleBadge = document.getElementById('header-user-role-badge');
         if (CURRENT_ROLE === 'Admin') {
-          if (els.adminEntrance) els.adminEntrance.classList.add('active');
+          if (headerAdminBtn) headerAdminBtn.style.display = 'inline-flex';
+          if (headerRoleBadge) headerRoleBadge.style.display = 'inline-block';
+          if (els.adminEntrance) els.adminEntrance.style.display = 'none';
         } else {
-          if (els.adminEntrance) els.adminEntrance.classList.remove('active');
+          if (headerAdminBtn) headerAdminBtn.style.display = 'none';
+          if (headerRoleBadge) headerRoleBadge.style.display = 'none';
+          if (els.adminEntrance) els.adminEntrance.style.display = 'none';
         }
 
         populateTeamSelect();
@@ -1361,12 +1457,18 @@
         ALLOWED_TEAMS = [];
         CURRENT_ROLE = 'User';
 
+        const headerAdminBtn = document.getElementById('header-admin-btn');
+        const headerRoleBadge = document.getElementById('header-user-role-badge');
+        if (headerAdminBtn) headerAdminBtn.style.display = 'none';
+        if (headerRoleBadge) headerRoleBadge.style.display = 'none';
+
         if (els.userHeaderInfo) {
           els.userHeaderInfo.style.display = 'none';
           els.userHeaderInfo.classList.add('hidden');
         }
         if (els.adminEntrance) {
           els.adminEntrance.classList.remove('active');
+          els.adminEntrance.style.display = 'none';
         }
 
         showStep('step-email');
@@ -1827,6 +1929,10 @@
         if (!CURRENT_TOKEN) {
           alert('Vui lòng đăng nhập bằng Email & OTP trước khi truy cập trang Quản lý phân quyền.');
           showStep('step-email');
+          return;
+        }
+        if (els.stepAdmin && els.stepAdmin.classList.contains('active')) {
+          showStep('step-query');
           return;
         }
         showStep('step-admin');
