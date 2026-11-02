@@ -551,28 +551,51 @@ function verifySession(token) {
 }
 
 
-// 📋 Lấy danh sách team & quyền được phép từ sheet "DanhSach"
+// 🔑 Tạo key cache chuẩn ASCII cho thông tin phân quyền
+function getTeamsCacheKey(email) {
+  const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, (email || '').trim().toLowerCase())
+    .map(b => (b + 256) % 256)
+    .join('');
+  return "PERM_" + hash;
+}
+
+// 📋 Lấy danh sách team & quyền được phép từ sheet "DanhSach" (áp dụng L1 CacheService 10 phút)
 function getTeamsForEmail(email) {
   try {
+    const cleanEmail = (email || '').toString().trim().toLowerCase();
+    if (!cleanEmail) return { teams: [], role: 'User' };
+
+    // 1. Kiểm tra Cache L1 (nhanh < 5ms, tránh gọi SpreadsheetApp liên tục)
+    const cache = CacheService.getScriptCache();
+    const cacheKey = getTeamsCacheKey(cleanEmail);
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+
     const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
     const sheet = ss.getSheetByName("DanhSach");
     if (!sheet) throw new Error("Sheet 'DanhSach' không tồn tại");
 
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) return { teams: [], role: 'User' };
+    const allData = sheet.getDataRange().getValues();
+    if (allData.length < 2) return { teams: [], role: 'User' };
 
-    // Lấy dữ liệu 4 cột: A (Email), B (Teams), C (Ghi chú/Họ tên), D (Quyền)
-    const data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
-
-    for (let row of data) {
-      let [storedEmail, teamsStr, colC, role] = row;
-      if (storedEmail && storedEmail.toString().trim().toLowerCase() === email) {
+    let userPerm = { teams: [], role: 'User' };
+    for (let i = 1; i < allData.length; i++) {
+      let [storedEmail, teamsStr, colC, role] = allData[i];
+      if (storedEmail && storedEmail.toString().trim().toLowerCase() === cleanEmail) {
         const teams = teamsStr ? teamsStr.toString().split(';').map(t => t.trim()).filter(t => t.length > 0) : [];
         const userRole = (role || 'User').toString().trim();
-        return { teams, role: userRole };
+        userPerm = { teams, role: userRole };
+        break;
       }
     }
-    return { teams: [], role: 'User' };
+
+    // Cache kết quả phân quyền trong 10 phút (600s)
+    cache.put(cacheKey, JSON.stringify(userPerm), 600);
+    return userPerm;
   } catch (e) {
     console.error("Lỗi trong getTeamsForEmail:", e);
     return { teams: [], role: 'User' };
@@ -588,12 +611,12 @@ function isAdmin(token) {
 }
 
 
-// 📊 Lấy dữ liệu đã lọc theo điều kiện — sử dụng SECURITY TOKEN (không tin tưởng email từ client)
+// 📊 Lấy dữ liệu đã lọc theo điều kiện — xử lý 100% tại BACKEND để đảm bảo bảo mật tuyệt đối
 function getFilteredData(options) {
   const { type, token, selectedTeams, fromYear, fromQuarter, toYear, toQuarter } = options;
 
   try {
-    // 1. Kiểm tra Token & Lấy Email qua cơ chế Hierarchical Cache
+    // 1. Kiểm tra Token & Lấy Email qua cơ chế Hierarchical Cache (Xác thực danh tính)
     if (!token) return { success: false, error: "Thiếu token xác thực." };
 
     const email = getEmailFromToken(token);
@@ -601,38 +624,46 @@ function getFilteredData(options) {
       return { success: false, error: "Phiên làm việc đã hết hạn. Vui lòng tải lại trang và đăng nhập lại." };
     }
 
-    // 2. Kiểm tra input khác
+    // 2. Kiểm tra input hợp lệ
     if (!selectedTeams || !Array.isArray(selectedTeams) || selectedTeams.length === 0) {
       return { success: false, error: "Chưa chọn team nào." };
     }
 
-    // 3. Kiểm tra quyền (Tái xác thực quyền của Email lấy từ Token)
+    // 3. KIỂM TRA BẢO MẬT PHÂN QUYỀN TRÊN BACKEND (Không tin cậy client)
     const { teams: allowedTeams, role } = getTeamsForEmail(email);
 
-    // Nếu là Admin thì có quyền xem tất cả, nếu không thì phải check list
+    // Nếu không phải Admin, buộc mọi team được yêu cầu phải thuộc danh sách allowedTeams
     if (role !== 'Admin') {
-      const isAllAllowed = selectedTeams.every(t => allowedTeams.includes(t));
+      const normalizedAllowedTeams = new Set(allowedTeams.map(t => t.trim().toLowerCase()));
+      const isAllAllowed = selectedTeams.every(t => normalizedAllowedTeams.has(t.trim().toLowerCase()));
       if (!isAllAllowed) {
         return { success: false, error: "Phát hiện truy cập trái phép team không thuộc quyền quản lý." };
       }
     }
 
     // GHI LOG TRA CỨU (Lọc bỏ token ra khỏi log để bảo mật)
-    const searchParams = { type, selectedTeams, fromYear, fromQuarter, toYear, toQuarter };
+    const searchParams = { type: type || 'both', selectedTeams, fromYear, fromQuarter, toYear, toQuarter };
     logAction(email, 'SEARCH', JSON.stringify(searchParams));
 
-    // Mở file DSTC
+    // Mở file DSTC (Chỉ mở 1 file dữ liệu duy nhất trong toàn bộ request)
     const dstcSs = SpreadsheetApp.openById(DSTC_SHEET_ID);
-    let sheet, allHeaders, data, result = [], filteredHeaders = [];
 
-    if (type === 'ca_nhan') {
-      sheet = dstcSs.getSheetByName("ChiTieu");
-      if (!sheet) throw new Error("Sheet 'ChiTieu' không tồn tại");
+    // Chuẩn bị Set các team được chọn (đã chuẩn hóa lowercase và trim) để so khớp chính xác 100% O(1)
+    const normalizedSelectedTeams = new Set(selectedTeams.map(t => t.trim().toLowerCase()));
 
-      allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
+    // Hàm helper trích xuất và lọc dữ liệu cho từng Sheet
+    function extractSheetData(sheetName, isTeamSheet) {
+      const sheet = dstcSs.getSheetByName(sheetName);
+      if (!sheet) return { headers: [], data: [] };
 
-      // Tìm vị trí cột M4 trong sheet ChiTieu theo tên header
+      // Đọc toàn bộ bảng trong 1 lượt duy nhất
+      const allData = sheet.getDataRange().getValues();
+      if (allData.length < 2) return { headers: [], data: [] };
+
+      const allHeaders = allData[0];
+      const data = allData.slice(1);
+
+      // Tìm vị trí cột M4 theo tên header
       let m4ColIdx = -1;
       for (let i = 0; i < allHeaders.length; i++) {
         const hName = String(allHeaders[i] || '').trim().toLowerCase();
@@ -641,105 +672,85 @@ function getFilteredData(options) {
           break;
         }
       }
-      if (m4ColIdx === -1) m4ColIdx = 10; // Fallback cột K (index 10)
 
-      // 1. Lọc các dòng thỏa mãn Team và Khoảng thời gian trước
       const matchedRows = [];
       let hasAnyM4 = false;
 
-      // Cột: D=Team (index 3), E=Quý (index 4), F=Năm (index 5)
-      for (let row of data) {
-        const team = (row[3] || '').toString().trim();
-        const quy = parseInt(row[4]) || 0;
-        const nam = parseInt(row[5]) || 0;
+      if (isTeamSheet) {
+        if (m4ColIdx === -1) m4ColIdx = 8; // Fallback
+        // Cột: C=Team (index 2), B=Quý (index 1), A=Năm (index 0)
+        for (let row of data) {
+          const team = (row[2] || '').toString().trim();
+          const quy = parseInt(row[1]) || 0;
+          const nam = parseInt(row[0]) || 0;
 
-        const teamMatches = selectedTeams.some(t => team.includes(t));
-        if (teamMatches && isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) {
-          matchedRows.push(row);
-          if (!hasAnyM4 && hasValidM4(row[m4ColIdx])) {
-            hasAnyM4 = true;
+          if (!isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) continue;
+
+          const rowTeams = team.split(/[,;]/).map(t => t.trim().toLowerCase()).filter(Boolean);
+          const teamMatches = rowTeams.some(rt => normalizedSelectedTeams.has(rt));
+          if (teamMatches) {
+            matchedRows.push(row);
+            if (!hasAnyM4 && hasValidM4(row[m4ColIdx])) {
+              hasAnyM4 = true;
+            }
           }
         }
-      }
 
-      // 2. Xác định danh sách cột cần lấy động
-      // Mặc định không M4: [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14]
-      // Nếu có M4: chèn m4ColIdx vào giữa index 9 (M3) và index 11 (DSTC)
-      let colsToKeep = [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14];
-      if (hasAnyM4) {
-        colsToKeep = [1, 2, 3, 4, 5, 7, 8, 9, m4ColIdx, 11, 12, 14];
-      }
+        const baseCols = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11];
+        const colsToKeep = hasAnyM4 ? baseCols : baseCols.filter(idx => idx !== m4ColIdx);
+        const filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+        const result = matchedRows.map(row => colsToKeep.map(i => (row[i] !== undefined ? row[i] : '')));
+        return { headers: filteredHeaders, data: result };
 
-      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+      } else {
+        // Sheet ChiTieu (Cá nhân)
+        if (m4ColIdx === -1) m4ColIdx = 10; // Fallback cột K (index 10)
+        // Cột: D=Team (index 3), E=Quý (index 4), F=Năm (index 5)
+        for (let row of data) {
+          const team = (row[3] || '').toString().trim();
+          const quy = parseInt(row[4]) || 0;
+          const nam = parseInt(row[5]) || 0;
 
-      // 3. Trích xuất dữ liệu
-      for (let row of matchedRows) {
-        const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
-        result.push(filteredRow);
-      }
+          if (!isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) continue;
 
-    } else if (type === 'team') {
-      sheet = dstcSs.getSheetByName("Team");
-      if (!sheet) throw new Error("Sheet 'Team' không tồn tại");
-
-      allHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      data = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), sheet.getLastColumn()).getValues();
-
-      // Tìm vị trí cột M4 trong sheet Team theo tên header
-      let m4ColIdx = -1;
-      for (let i = 0; i < allHeaders.length; i++) {
-        const hName = String(allHeaders[i] || '').trim().toLowerCase();
-        if (hName === 'm4' || hName === 'muc 4' || hName === 'muc4' || hName === 'mức 4') {
-          m4ColIdx = i;
-          break;
-        }
-      }
-      if (m4ColIdx === -1) m4ColIdx = 8; // Fallback
-
-      // 1. Lọc các dòng thỏa mãn Team và Khoảng thời gian trước
-      const matchedRows = [];
-      let hasAnyM4 = false;
-
-      // Cột: C=Team (index 2), B=Quý (index 1), A=Năm (index 0)
-      for (let row of data) {
-        const team = (row[2] || '').toString().trim();
-        const quy = parseInt(row[1]) || 0;
-        const nam = parseInt(row[0]) || 0;
-
-        const teamMatches = selectedTeams.includes(team);
-        if (teamMatches && isInRange(nam, quy, fromYear, fromQuarter, toYear, toQuarter)) {
-          matchedRows.push(row);
-          if (!hasAnyM4 && hasValidM4(row[m4ColIdx])) {
-            hasAnyM4 = true;
+          const rowTeams = team.split(/[,;]/).map(t => t.trim().toLowerCase()).filter(Boolean);
+          const teamMatches = rowTeams.some(rt => normalizedSelectedTeams.has(rt));
+          if (teamMatches) {
+            matchedRows.push(row);
+            if (!hasAnyM4 && hasValidM4(row[m4ColIdx])) {
+              hasAnyM4 = true;
+            }
           }
         }
+
+        let colsToKeep = [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14];
+        if (hasAnyM4) {
+          colsToKeep = [1, 2, 3, 4, 5, 7, 8, 9, m4ColIdx, 11, 12, 14];
+        }
+        const filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
+        const result = matchedRows.map(row => colsToKeep.map(i => (row[i] !== undefined ? row[i] : '')));
+        return { headers: filteredHeaders, data: result };
       }
-
-      // 2. Xác định danh sách cột cần lấy động
-      // Mặc định đầy đủ: [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11]
-      // Nếu không có M4: lọc bỏ m4ColIdx
-      const baseCols = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11];
-      const colsToKeep = hasAnyM4
-        ? baseCols
-        : baseCols.filter(idx => idx !== m4ColIdx);
-
-      filteredHeaders = colsToKeep.map(i => (allHeaders[i] !== undefined ? allHeaders[i] : ''));
-
-      // 3. Trích xuất dữ liệu
-      for (let row of matchedRows) {
-        const filteredRow = colsToKeep.map(i => row[i] !== undefined ? row[i] : '');
-        result.push(filteredRow);
-      }
-
-    } else {
-      throw new Error("Loại tra cứu không hợp lệ");
     }
 
-    // ✅ Trả về headers đã lọc + dữ liệu đã lọc
+    // Nếu yêu cầu cụ thể 1 sheet (cho tương thích ngược)
+    if (type === 'ca_nhan') {
+      const res = extractSheetData("ChiTieu", false);
+      return { success: true, headers: res.headers, data: res.data };
+    } else if (type === 'team') {
+      const res = extractSheetData("Team", true);
+      return { success: true, headers: res.headers, data: res.data };
+    }
+
+    // Mặc định hoặc type === 'both': Trả về đồng thời cả 2 Tab (Tổng team & Chi tiết)
+    const teamRes = extractSheetData("Team", true);
+    const caNhanRes = extractSheetData("ChiTieu", false);
+
     return {
       success: true,
-      headers: filteredHeaders,
-      data: result
+      isDualTab: true,
+      team: teamRes,
+      ca_nhan: caNhanRes
     };
 
   } catch (e) {
@@ -800,6 +811,11 @@ function savePermission(token, pData) {
       sheet.appendRow(rowValues);
     }
 
+    // Xóa cache phân quyền để thay đổi có hiệu lực ngay lập tức
+    try {
+      CacheService.getScriptCache().remove(getTeamsCacheKey(pData.email));
+    } catch (cacheErr) {}
+
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
@@ -820,6 +836,10 @@ function deletePermission(token, email) {
     for (let i = 0; i < data.length; i++) {
       if (data[i][0].toString().trim().toLowerCase() === email.trim().toLowerCase()) {
         sheet.deleteRow(i + 2);
+        // Xóa cache phân quyền của email bị xóa
+        try {
+          CacheService.getScriptCache().remove(getTeamsCacheKey(email));
+        } catch (cacheErr) {}
         return { success: true };
       }
     }
@@ -866,9 +886,23 @@ function isInRange(year, quarter, fromYear, fromQuarter, toYear, toQuarter) {
   return current >= start && current <= end;
 }
 
-// 📝 GHI LOG HOẠT ĐỘNG
+// 📝 GHI LOG HOẠT ĐỘNG (Bảo mật & Tối ưu hiệu năng)
 function logAction(email, action, details) {
   try {
+    const safeEmail = (email || '').toString().trim();
+    const safeAction = (action || '').toString().trim();
+    const safeDetails = (details || '').toString().trim();
+
+    // 1. Luôn ghi log vào Google Cloud Logging (tốc độ 0ms, lưu vết audit tự động)
+    console.info(`[AUDIT ${safeAction}] ${safeEmail}: ${safeDetails}`);
+
+    // 2. Tối ưu hiệu năng: Đối với SEARCH (tra cứu thường xuyên), không gọi appendRow vào Sheet Logs
+    // để tránh nghẽn luồng truy vấn (tiết kiệm 2 - 3 giây độ trễ cho người dùng).
+    // Các sự kiện bảo mật cốt lõi (LOGIN_OTP, LOGIN_GOOGLE, LOGIN_REJECTED...) vẫn ghi bền vững vào Sheet Logs.
+    if (safeAction === 'SEARCH') {
+      return;
+    }
+
     const ss = SpreadsheetApp.openById(KEY_ACCOUNT_SHEET_ID);
     let sheet = ss.getSheetByName("Logs");
     
@@ -884,11 +918,6 @@ function logAction(email, action, details) {
 
     // Lấy thời gian hiện tại theo GMT+7
     const timestamp = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd HH:mm:ss");
-    
-    // Ép kiểu các dữ liệu để an toàn khi ghi vào Sheet
-    const safeEmail = (email || '').toString().trim();
-    const safeAction = (action || '').toString().trim();
-    const safeDetails = (details || '').toString().trim();
 
     sheet.appendRow([timestamp, safeEmail, safeAction, safeDetails]);
   } catch (e) {

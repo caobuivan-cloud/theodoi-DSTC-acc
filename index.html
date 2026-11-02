@@ -244,7 +244,7 @@
       display: block;
     }
 
-    /* Khu vực 1: Cân đối Loại tra cứu & Chọn team */
+    /* Khu vực 1: Chọn team */
     .query-select-row {
       display: flex;
       gap: 16px;
@@ -252,20 +252,100 @@
       flex-wrap: wrap;
     }
 
-    .query-type-col {
-      flex: 0 0 220px;
-      width: 220px;
-    }
-
     .query-team-col {
       flex: 1;
+      width: 100%;
       min-width: 280px;
     }
 
-    .query-type-col select.input,
     .team-selector-display {
       height: 42px;
       box-sizing: border-box;
+    }
+
+    /* 🗂️ 2-Tab Navigation Styles */
+    .results-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tabs-nav {
+      display: flex;
+      gap: 6px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #64748b;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: #1e293b;
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      background: white;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .tab-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      border-radius: 10px;
+      background: #e2e8f0;
+      color: #475569;
+      min-width: 20px;
+    }
+
+    .tab-btn.active .tab-count-badge {
+      background: #dbeafe;
+      color: var(--primary);
+    }
+
+    .export-excel-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      background: #0f5132;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .export-excel-btn:hover {
+      background: #0d442a;
+      box-shadow: 0 2px 6px rgba(15, 81, 50, 0.2);
     }
 
     /* Khu vực 2: Đưa Thời gian & Tìm kiếm lên 1 dòng */
@@ -952,18 +1032,10 @@
         <div id="step-query" class="step">
           <div id="admin-entrance" class="admin-only" style="display:none"></div>
           
-          <!-- Khu vực 1: Loại tra cứu & Chọn team (đã cân đối tỷ lệ) -->
+          <!-- Khu vực 1: Chọn team -->
           <div class="query-select-row">
-            <div class="query-type-col">
-              <label for="type">1. Loại tra cứu</label>
-              <select id="type" class="input">
-                <option value="">-- Chọn --</option>
-                <option value="ca_nhan">Chi tiết</option>
-                <option value="team">Tổng team</option>
-              </select>
-            </div>
             <div class="query-team-col">
-              <label>2. Chọn team</label>
+              <label>1. Chọn team</label>
               <div class="team-selector-wrapper">
                 <div id="team-selector-display" class="team-selector-display" tabindex="0" onclick="openTeamModal()"
                   onkeydown="if(event.key==='Enter'||event.key===' ')openTeamModal()">
@@ -985,7 +1057,7 @@
           <div id="date-range" class="hidden" style="margin-top:12px">
             <div class="query-actions-row">
               <div class="time-filter-inline">
-                <span class="time-main-label">3. Khoảng thời gian:</span>
+                <span class="time-main-label">2. Khoảng thời gian:</span>
                 <div class="time-inputs-group">
                   <span class="time-tag-lbl">Từ</span>
                   <select id="from-quarter" class="input compact-select">
@@ -994,7 +1066,7 @@
                     <option value="3">Q3</option>
                     <option value="4">Q4</option>
                   </select>
-                  <input id="from-year" type="number" min="2020" value="2024" class="input compact-year" />
+                  <input id="from-year" type="number" min="2020" value="2026" class="input compact-year" />
                   
                   <span class="time-tag-lbl" style="margin-left:4px">Đến</span>
                   <select id="to-quarter" class="input compact-select">
@@ -1003,7 +1075,7 @@
                     <option value="3">Q3</option>
                     <option value="4">Q4</option>
                   </select>
-                  <input id="to-year" type="number" min="2020" value="2024" class="input compact-year" />
+                  <input id="to-year" type="number" min="2020" value="2026" class="input compact-year" />
                 </div>
                 <button id="search-btn" class="btn btn-search" disabled>🔍 Tra cứu</button>
               </div>
@@ -1692,14 +1764,15 @@
         }
       }
 
+      // Quản lý state kết quả 2 Tab
+      let CURRENT_RESULTS_DATA = null;
+      let ACTIVE_RESULT_TAB = 'team'; // 'team' | 'ca_nhan'
+
       function toggleDateRange() {
         const hasTeam = SELECTED_TEAMS.length > 0;
-        const enabled = els.typeEl.value && hasTeam;
-        els.dateRangeEl.classList.toggle('hidden', !enabled);
-        els.searchBtn.disabled = !enabled;
+        els.dateRangeEl.classList.toggle('hidden', !hasTeam);
+        els.searchBtn.disabled = !hasTeam;
       }
-
-      if (els.typeEl) els.typeEl.addEventListener('change', toggleDateRange);
 
       if (els.searchBtn) {
         els.searchBtn.removeEventListener('click', handleSearch);
@@ -1719,7 +1792,6 @@
       }
 
       async function handleSearch() {
-        const type = els.typeEl?.value;
         const selectedTeams = SELECTED_TEAMS.filter(v => v);
 
         const fromQ = parseInt(document.getElementById('from-quarter')?.value || '0');
@@ -1727,8 +1799,8 @@
         const toQ = parseInt(document.getElementById('to-quarter')?.value || '0');
         const toY = parseInt(document.getElementById('to-year')?.value || '0');
 
-        if (!type || selectedTeams.length === 0) {
-          alert('Vui lòng chọn loại tra cứu và ít nhất 1 team!');
+        if (selectedTeams.length === 0) {
+          alert('Vui lòng chọn ít nhất 1 team!');
           return;
         }
         if (fromY > toY || (fromY === toY && fromQ > toQ)) {
@@ -1736,12 +1808,12 @@
           return;
         }
 
-        els.resultsDiv.innerHTML = '<div class="loading-center">Đang tra cứu dữ liệu... ⏳</div>';
+        els.resultsDiv.innerHTML = '<div class="loading-center">Đang tra cứu dữ liệu (Tổng team & Chi tiết)... ⏳</div>';
         els.searchBtn.disabled = true;
         els.searchBtn.textContent = 'Đang tra...';
 
         const payload = {
-          type,
+          type: 'both',
           token: CURRENT_TOKEN, // 🛡️ Gửi token thay vì email
           selectedTeams: selectedTeams,
           fromYear: fromY,
@@ -1767,28 +1839,45 @@
       }
 
       // ======================
-      // RENDER & FILTER
+      // RENDER 2 TAB & FILTER
       // ======================
       function renderResults(res) {
         els.resultsDiv.innerHTML = '';
         if (!res || !res.success) {
-          els.resultsDiv.innerHTML = '';
           const errDiv = document.createElement('div');
           errDiv.className = 'status error';
           errDiv.textContent = `❌ ${res?.error || 'Không có dữ liệu.'}`;
           els.resultsDiv.appendChild(errDiv);
-
           els.searchBoxEl.classList.add('hidden');
           return;
         }
 
-        if (!res.data || res.data.length === 0) {
+        // Nếu kết quả trả về là Dual Tab (chuẩn mới)
+        if (res.isDualTab || (res.team && res.ca_nhan)) {
+          CURRENT_RESULTS_DATA = {
+            team: res.team || { headers: [], data: [] },
+            ca_nhan: res.ca_nhan || { headers: [], data: [] }
+          };
+        } else {
+          // Fallback cho single table nếu backend cũ trả về
+          CURRENT_RESULTS_DATA = {
+            team: { headers: res.headers || [], data: res.data || [] },
+            ca_nhan: { headers: [], data: [] }
+          };
+        }
+
+        const teamCount = CURRENT_RESULTS_DATA.team.data ? CURRENT_RESULTS_DATA.team.data.length : 0;
+        const caNhanCount = CURRENT_RESULTS_DATA.ca_nhan.data ? CURRENT_RESULTS_DATA.ca_nhan.data.length : 0;
+
+        if (teamCount === 0 && caNhanCount === 0) {
+          const fromY = document.getElementById('from-year')?.value || '';
+          const fromQ = document.getElementById('from-quarter')?.value || '';
+          const toY = document.getElementById('to-year')?.value || '';
+          const toQ = document.getElementById('to-quarter')?.value || '';
           els.resultsDiv.innerHTML = `
-      <div class='status success'>
-        ✅ Không có dữ liệu trong khoảng 
-        <strong>${document.getElementById('from-year').value}Q${document.getElementById('from-quarter').value} 
-        → ${document.getElementById('to-year').value}Q${document.getElementById('to-quarter').value}</strong>.
-      </div>`;
+            <div class='status success'>
+              ✅ Không có dữ liệu trong khoảng <strong>${fromY}Q${fromQ} → ${toY}Q${toQ}</strong>.
+            </div>`;
           els.searchBoxEl.classList.add('hidden');
           return;
         }
@@ -1796,10 +1885,93 @@
         els.searchBoxEl.classList.remove('hidden');
         if (els.resultSearchEl) els.resultSearchEl.value = '';
 
-        const headers = res.headers || [];
-        const rows = res.data || [];
+        // Ưu tiên active tab Tổng team nếu có dữ liệu, nếu không thì active tab Chi tiết
+        if (teamCount > 0) {
+          ACTIVE_RESULT_TAB = 'team';
+        } else {
+          ACTIVE_RESULT_TAB = 'ca_nhan';
+        }
 
-        const NUMERIC_COLUMNS = ['M1', 'M2', 'M3', 'M4', 'DSTC', 'Mức 0', 'Muc1', 'Muc2', 'Muc3', 'Muc 4', 'Muc4', 'Mức 4', 'Thực đạt'];
+        renderActiveTabTable();
+      }
+
+      function renderActiveTabTable() {
+        if (!CURRENT_RESULTS_DATA) return;
+        els.resultsDiv.innerHTML = '';
+
+        const teamData = CURRENT_RESULTS_DATA.team || { headers: [], data: [] };
+        const caNhanData = CURRENT_RESULTS_DATA.ca_nhan || { headers: [], data: [] };
+        const teamCount = teamData.data ? teamData.data.length : 0;
+        const caNhanCount = caNhanData.data ? caNhanData.data.length : 0;
+
+        // Header row chứa 2 Tab và Nút Xuất Excel
+        const headerRow = document.createElement('div');
+        headerRow.className = 'results-header-row';
+
+        const tabsNav = document.createElement('div');
+        tabsNav.className = 'tabs-nav';
+
+        // Tab Tổng team
+        const btnTeam = document.createElement('button');
+        btnTeam.className = 'tab-btn' + (ACTIVE_RESULT_TAB === 'team' ? ' active' : '');
+        btnTeam.type = 'button';
+        btnTeam.innerHTML = `<span>📊 Tổng team</span><span class="tab-count-badge">${teamCount}</span>`;
+        btnTeam.onclick = () => {
+          if (ACTIVE_RESULT_TAB !== 'team') {
+            ACTIVE_RESULT_TAB = 'team';
+            renderActiveTabTable();
+          }
+        };
+
+        // Tab Chi tiết cá nhân
+        const btnCaNhan = document.createElement('button');
+        btnCaNhan.className = 'tab-btn' + (ACTIVE_RESULT_TAB === 'ca_nhan' ? ' active' : '');
+        btnCaNhan.type = 'button';
+        btnCaNhan.innerHTML = `<span>👤 Chi tiết cá nhân</span><span class="tab-count-badge">${caNhanCount}</span>`;
+        btnCaNhan.onclick = () => {
+          if (ACTIVE_RESULT_TAB !== 'ca_nhan') {
+            ACTIVE_RESULT_TAB = 'ca_nhan';
+            renderActiveTabTable();
+          }
+        };
+
+        tabsNav.appendChild(btnTeam);
+        tabsNav.appendChild(btnCaNhan);
+        headerRow.appendChild(tabsNav);
+
+        // Nút Xuất Excel 2 Sheet
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'export-excel-btn';
+        exportBtn.type = 'button';
+        exportBtn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Xuất Excel (2 Sheet)`;
+        exportBtn.onclick = exportBothToExcel;
+        headerRow.appendChild(exportBtn);
+
+        els.resultsDiv.appendChild(headerRow);
+
+        // Dữ liệu bảng cho Tab hiện tại
+        const currentTabObj = ACTIVE_RESULT_TAB === 'team' ? teamData : caNhanData;
+        const headers = currentTabObj.headers || [];
+        const rows = currentTabObj.data || [];
+
+        if (rows.length === 0) {
+          const emptyNotice = document.createElement('div');
+          emptyNotice.style.padding = '30px';
+          emptyNotice.style.textAlign = 'center';
+          emptyNotice.style.color = 'var(--muted)';
+          emptyNotice.style.fontStyle = 'italic';
+          emptyNotice.textContent = `Không có dữ liệu trong mục "${ACTIVE_RESULT_TAB === 'team' ? 'Tổng team' : 'Chi tiết cá nhân'}" cho khoảng thời gian này.`;
+          els.resultsDiv.appendChild(emptyNotice);
+          return;
+        }
+
+        const NUMERIC_COLUMNS = ['M1', 'M2', 'M3', 'M4', 'DSTC', 'Mức 0', 'Muc1', 'Muc2', 'Muc3', 'Muc 4', 'Muc4', 'Mức 4', 'Thực đạt', 'Thực chạy NET'];
 
         // Tạo bảng
         const wrapper = document.createElement('div');
@@ -1841,28 +2013,17 @@
         table.appendChild(thead);
         table.appendChild(tbody);
         wrapper.appendChild(table);
-
-        // Tiêu đề + nút xuất Excel
-        const title = document.createElement('h3');
-        title.textContent = `Kết quả (${rows.length} dòng):`;
-
-        const exportBtn = document.createElement('button');
-        exportBtn.className = 'btn outline';
-        exportBtn.textContent = '📥 Xuất Excel';
-        exportBtn.onclick = () => exportToExcel(headers, rows);
-
-        const btnContainer = document.createElement('div');
-        btnContainer.style.marginTop = '12px';
-        btnContainer.appendChild(exportBtn);
-
-        els.resultsDiv.appendChild(title);
-        els.resultsDiv.appendChild(btnContainer);
         els.resultsDiv.appendChild(wrapper);
 
-        // Gắn sự kiện tìm kiếm
-        if (els.resultSearchEl && !els.resultSearchEl.dataset.bound) {
-          els.resultSearchEl.addEventListener('input', filterResults);
-          els.resultSearchEl.dataset.bound = 'true';
+        // Gắn sự kiện tìm kiếm nếu chưa có hoặc kích hoạt lọc lại
+        if (els.resultSearchEl) {
+          if (!els.resultSearchEl.dataset.bound) {
+            els.resultSearchEl.addEventListener('input', filterResults);
+            els.resultSearchEl.dataset.bound = 'true';
+          }
+          if (els.resultSearchEl.value) {
+            filterResults();
+          }
         }
       }
 
@@ -1885,36 +2046,64 @@
       }
       window.clearSearch = clearSearch;
 
-      // ✅ Xuất Excel (client-side)
-      function exportToExcel(headers, rows) {
-        if (!headers || !rows || rows.length === 0) {
+      // ✅ Xuất Excel cả 2 Sheet (Tong_Team & Chi_Tiet_Ca_Nhan)
+      function exportBothToExcel() {
+        if (!CURRENT_RESULTS_DATA) {
+          alert('Không có dữ liệu để xuất.');
+          return;
+        }
+
+        const teamData = CURRENT_RESULTS_DATA.team || { headers: [], data: [] };
+        const caNhanData = CURRENT_RESULTS_DATA.ca_nhan || { headers: [], data: [] };
+
+        if ((!teamData.data || teamData.data.length === 0) && (!caNhanData.data || caNhanData.data.length === 0)) {
           alert('Không có dữ liệu để xuất.');
           return;
         }
 
         try {
-          const NUMERIC_COLUMNS = ['M1', 'M2', 'M3', 'M4', 'DSTC', 'Mức 0', 'Muc1', 'Muc2', 'Muc3', 'Muc 4', 'Muc4', 'Mức 4', 'Thực đạt'];
-          const data = [headers];
+          const NUMERIC_COLUMNS = ['M1', 'M2', 'M3', 'M4', 'DSTC', 'Mức 0', 'Muc1', 'Muc2', 'Muc3', 'Muc 4', 'Muc4', 'Mức 4', 'Thực đạt', 'Thực chạy NET'];
 
-          rows.forEach(row => {
-            const newRow = [];
-            row.forEach((cell, idx) => {
-              const header = headers[idx] || '';
-              if (NUMERIC_COLUMNS.includes(header) && typeof cell === 'number') {
-                newRow.push(cell);
-              } else {
-                newRow.push(cell == null ? '' : String(cell).trim());
-              }
+          function buildAoa(headers, rows) {
+            const data = [headers];
+            rows.forEach(row => {
+              const newRow = [];
+              row.forEach((cell, idx) => {
+                const header = headers[idx] || '';
+                if (NUMERIC_COLUMNS.includes(header) && typeof cell === 'number') {
+                  newRow.push(cell);
+                } else {
+                  newRow.push(cell == null ? '' : String(cell).trim());
+                }
+              });
+              data.push(newRow);
             });
-            data.push(newRow);
-          });
+            return data;
+          }
 
-          const ws = XLSX.utils.aoa_to_sheet(data);
           const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'DSTC');
 
-          const now = new Date();
-          const fileName = `DSTC_${els.typeEl.value === 'team' ? 'Team' : 'CaNhan'}_${now.toISOString().slice(0, 10)}.xlsx`;
+          // Sheet 1: Tổng team
+          if (teamData.data && teamData.data.length > 0) {
+            const wsTeam = XLSX.utils.aoa_to_sheet(buildAoa(teamData.headers, teamData.data));
+            XLSX.utils.book_append_sheet(wb, wsTeam, 'Tong_Team');
+          }
+
+          // Sheet 2: Chi tiết cá nhân
+          if (caNhanData.data && caNhanData.data.length > 0) {
+            const wsCaNhan = XLSX.utils.aoa_to_sheet(buildAoa(caNhanData.headers, caNhanData.data));
+            XLSX.utils.book_append_sheet(wb, wsCaNhan, 'Chi_Tiet_Ca_Nhan');
+          }
+
+          const teamLabel = SELECTED_TEAMS.length === 1 ? SELECTED_TEAMS[0] : (SELECTED_TEAMS.length > 1 ? `${SELECTED_TEAMS[0]}_va_${SELECTED_TEAMS.length - 1}_team` : 'DSTC');
+          const cleanTeam = teamLabel.replace(/[\/\\?%*:|"<>]/g, '_');
+          const fromY = document.getElementById('from-year')?.value || '';
+          const fromQ = document.getElementById('from-quarter')?.value || '';
+          const toY = document.getElementById('to-year')?.value || '';
+          const toQ = document.getElementById('to-quarter')?.value || '';
+          const timeRangeStr = `${fromY}Q${fromQ}_${toY}Q${toQ}`;
+
+          const fileName = `DSTC_${cleanTeam}_${timeRangeStr}.xlsx`;
           XLSX.writeFile(wb, fileName);
         } catch (err) {
           console.error('Lỗi xuất Excel:', err);
