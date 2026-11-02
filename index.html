@@ -244,33 +244,86 @@
       display: block;
     }
 
-    /* Khu vực 1: Chọn team */
+    /* Khu vực 1 & 2: Chọn team (thu ngắn) và Khoảng thời gian trên cùng 1 hàng */
     .query-select-row {
       display: flex;
       gap: 16px;
-      align-items: flex-start;
+      align-items: flex-end;
       flex-wrap: wrap;
     }
 
     .query-team-col {
+      flex: 0 0 280px;
+      width: 280px;
+      min-width: 220px;
+    }
+
+    .query-time-col {
       flex: 1;
-      width: 100%;
-      min-width: 280px;
+      min-width: 380px;
     }
 
     .team-selector-display {
-      height: 42px;
+      height: 38px;
+      padding: 6px 12px;
       box-sizing: border-box;
     }
 
-    /* 🗂️ 2-Tab Navigation Styles */
+    .time-filter-inline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .time-inputs-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f8fafc;
+      padding: 3px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      height: 38px;
+      box-sizing: border-box;
+    }
+
+    .compact-select {
+      width: 66px !important;
+      height: 30px !important;
+      padding: 2px 6px !important;
+      font-size: 13.5px !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+
+    .compact-year {
+      width: 76px !important;
+      height: 30px !important;
+      padding: 2px 6px !important;
+      font-size: 13.5px !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+
+    .btn-search {
+      height: 38px !important;
+      padding: 0 18px !important;
+      font-size: 13.5px !important;
+      font-weight: 600 !important;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px !important;
+    }
+
+    /* 🗂️ 2-Tab Navigation & Action Bar (Tabs bên trái, Tìm kiếm ở giữa, Xuất Excel bên phải) */
     .results-header-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-top: 14px;
-      margin-bottom: 8px;
+      margin-top: 10px;
+      margin-bottom: 6px;
       flex-wrap: wrap;
     }
 
@@ -286,8 +339,8 @@
     .tab-btn {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 16px;
+      gap: 6px;
+      padding: 6px 14px;
       font-size: 13.5px;
       font-weight: 600;
       color: #64748b;
@@ -296,6 +349,7 @@
       border-radius: 6px;
       cursor: pointer;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .tab-btn:hover {
@@ -313,7 +367,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 2px 8px;
+      padding: 2px 7px;
       font-size: 11.5px;
       font-weight: 700;
       border-radius: 10px;
@@ -325,6 +379,46 @@
     .tab-btn.active .tab-count-badge {
       background: #dbeafe;
       color: var(--primary);
+    }
+
+    /* Vị trí 3 đưa vào Vị trí 4 (giữa Tabs và Nút Excel) */
+    .search-box-inline {
+      flex: 1;
+      max-width: 420px;
+      min-width: 220px;
+      margin: 0 8px;
+    }
+
+    .search-inner-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .search-inner-wrap .search-input {
+      flex: 1;
+      width: 100%;
+      height: 36px;
+      padding: 4px 10px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: white;
+    }
+
+    .search-inner-wrap .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    .btn-clear {
+      height: 36px !important;
+      padding: 0 10px !important;
+      font-size: 12.5px !important;
+      display: inline-flex;
+      align-items: center;
     }
 
     .export-excel-btn {
@@ -341,6 +435,7 @@
       border: none;
       cursor: pointer;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .export-excel-btn:hover {
@@ -348,151 +443,83 @@
       box-shadow: 0 2px 6px rgba(15, 81, 50, 0.2);
     }
 
-    /* Khu vực 2: Đưa Thời gian & Tìm kiếm lên 1 dòng */
-    .query-actions-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      background: #f8fafc;
-      padding: 7px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-
-    .time-filter-inline {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .time-main-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: #334155;
-      margin-bottom: 0;
-      white-space: nowrap;
-    }
-
-    .time-inputs-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .time-tag-lbl {
-      font-size: 12.5px;
-      color: var(--muted);
-      font-weight: 600;
-      white-space: nowrap;
-    }
-
-    .compact-select {
-      width: 66px !important;
-      height: 35px !important;
-      padding: 4px 8px !important;
-      font-size: 13.5px !important;
-    }
-
-    .compact-year {
-      width: 76px !important;
-      height: 35px !important;
-      padding: 4px 8px !important;
-      font-size: 13.5px !important;
-    }
-
-    .btn-search {
-      height: 35px !important;
-      padding: 0 16px !important;
-      font-size: 13px !important;
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .search-box-inline {
-      margin-left: auto;
-    }
-
-    .search-inner-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .search-inner-wrap .search-input {
-      width: 270px;
-      height: 35px;
-      padding: 4px 10px;
-      font-size: 13px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: white;
-    }
-
-    .search-inner-wrap .search-input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-    }
-
-    .btn-clear {
-      height: 35px !important;
-      padding: 0 10px !important;
-      font-size: 12.5px !important;
-      display: inline-flex;
-      align-items: center;
-    }
-
+    /* 📌 Bảng dữ liệu tối ưu diện tích và Header Sticky chuẩn xác */
     .table-wrap {
-      margin-top: 18px;
+      margin-top: 8px;
       border-radius: 10px;
       border: 1px solid var(--border);
       overflow: auto;
-      background: linear-gradient(0deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6));
+      max-height: calc(100vh - 190px); /* 🌟 Tối ưu tối đa không gian xem bảng theo chiều dọc */
+      background: white;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+      position: relative;
     }
 
     table {
       width: 100%;
       min-width: 820px;
-      border-collapse: collapse;
+      border-collapse: separate; /* Bắt buộc separate để sticky header không bị glitch */
+      border-spacing: 0;
     }
 
     th,
     td {
-      padding: 12px 14px;
+      padding: 9px 12px;
       text-align: left;
-      border-bottom: 1px solid #f3f7fb;
-      font-size: 14px;
+      border-bottom: 1px solid #eef2f6;
+      border-right: 1px solid #f1f5f9;
+      font-size: 13.5px;
       white-space: nowrap;
     }
 
     th {
-      background: #fbfdff;
+      background: #f8fafc;
       position: sticky;
       top: 0;
-      z-index: 3;
-      color: var(--muted);
-      font-weight: 600;
+      z-index: 10;
+      color: #334155;
+      font-weight: 700;
+      border-bottom: 2px solid #cbd5e1;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
     }
 
     tbody tr:nth-child(odd) td {
-      background: #fcfeff;
+      background: #ffffff;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #fbfdff;
     }
 
     tbody tr:hover td {
-      background: #f7fbff;
+      background: #eff6ff;
     }
 
-    th:first-child,
+    /* Sticky cố định cột đầu tiên */
+    th:first-child {
+      position: sticky;
+      left: 0;
+      top: 0;
+      background: #f1f5f9;
+      z-index: 20; /* Luôn nổi cao nhất khi vừa cuộn ngang vừa cuộn dọc */
+      border-right: 2px solid #cbd5e1;
+    }
+
     td:first-child {
       position: sticky;
       left: 0;
-      background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92));
-      z-index: 4;
+      background: #ffffff;
+      z-index: 8;
+      border-right: 2px solid #e2e8f0;
+      font-weight: 600;
+    }
+
+    tbody tr:nth-child(even) td:first-child {
+      background: #fbfdff;
+    }
+
+    tbody tr:hover td:first-child {
+      background: #eff6ff;
     }
 
     .loading-center {
@@ -501,34 +528,26 @@
       color: var(--muted);
     }
 
-    @media (max-width: 960px) {
-      .query-actions-row {
+    @media (max-width: 860px) {
+      .query-select-row {
         flex-direction: column;
         align-items: stretch;
       }
-
-      .search-box-inline {
-        margin-left: 0;
-        width: 100%;
-      }
-
-      .search-inner-wrap {
-        width: 100%;
-      }
-
-      .search-inner-wrap .search-input {
-        flex: 1;
-        width: auto;
-      }
-
-      .query-type-col {
-        flex: 1 1 100%;
-        width: 100%;
-      }
-
       .query-team-col {
-        flex: 1 1 100%;
         width: 100%;
+        flex: 1 1 100%;
+      }
+      .query-time-col {
+        width: 100%;
+        flex: 1 1 100%;
+      }
+      .results-header-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .search-box-inline {
+        max-width: 100%;
+        margin: 6px 0;
       }
     }
 
@@ -1032,7 +1051,7 @@
         <div id="step-query" class="step">
           <div id="admin-entrance" class="admin-only" style="display:none"></div>
           
-          <!-- Khu vực 1: Chọn team -->
+          <!-- Hàng 1: 1. Chọn team (thu ngắn) & 2. Khoảng thời gian trên cùng 1 hàng -->
           <div class="query-select-row">
             <div class="query-team-col">
               <label>1. Chọn team</label>
@@ -1051,13 +1070,10 @@
               </div>
               <div id="team-status" class="status hidden" role="status" aria-live="polite"></div>
             </div>
-          </div>
 
-          <!-- Khu vực 2: Thời gian & Tìm trong kết quả (1 dòng tiết kiệm diện tích) -->
-          <div id="date-range" class="hidden" style="margin-top:12px">
-            <div class="query-actions-row">
+            <div class="query-time-col">
+              <label>2. Khoảng thời gian</label>
               <div class="time-filter-inline">
-                <span class="time-main-label">2. Khoảng thời gian:</span>
                 <div class="time-inputs-group">
                   <span class="time-tag-lbl">Từ</span>
                   <select id="from-quarter" class="input compact-select">
@@ -1077,19 +1093,12 @@
                   </select>
                   <input id="to-year" type="number" min="2020" value="2026" class="input compact-year" />
                 </div>
-                <button id="search-btn" class="btn btn-search" disabled>🔍 Tra cứu</button>
-              </div>
-
-              <div id="search-box" class="search-box-inline hidden">
-                <div class="search-inner-wrap">
-                  <input id="result-search" class="search-input" placeholder="🔎 Tìm trong kết quả (tên, mã, số tiền...)" />
-                  <button class="btn ghost btn-clear" onclick="clearSearch()" title="Xóa từ khóa tìm kiếm">Xóa</button>
-                </div>
+                <button id="search-btn" class="btn btn-search">🔍 Tra cứu</button>
               </div>
             </div>
           </div>
 
-          <div id="results" style="margin-top:14px"></div>
+          <div id="results" style="margin-top:10px"></div>
         </div>
 
         <!-- Step Admin: Quản lý phân quyền -->
@@ -1679,6 +1688,15 @@
           return;
         }
 
+        // 🌟 Sắp xếp: Team nào được chọn xếp lên đầu danh sách, các team còn lại sắp xếp theo alphabet A-Z
+        filteredTeams.sort((a, b) => {
+          const aSelected = SELECTED_TEAMS.includes(a);
+          const bSelected = SELECTED_TEAMS.includes(b);
+          if (aSelected && !bSelected) return -1;
+          if (!aSelected && bSelected) return 1;
+          return a.localeCompare(b, 'vi', { sensitivity: 'base' });
+        });
+
         filteredTeams.forEach((team, idx) => {
           const isSelected = SELECTED_TEAMS.includes(team);
           const div = document.createElement('div');
@@ -1767,14 +1785,18 @@
         }
       }
 
-      // Quản lý state kết quả 2 Tab
+      // Quản lý state kết quả 2 Tab & Tìm kiếm
       let CURRENT_RESULTS_DATA = null;
       let ACTIVE_RESULT_TAB = 'team'; // 'team' | 'ca_nhan'
+      let CURRENT_SEARCH_KEYWORD = '';
 
       function toggleDateRange() {
         const hasTeam = SELECTED_TEAMS.length > 0;
-        els.dateRangeEl.classList.toggle('hidden', !hasTeam);
-        els.searchBtn.disabled = !hasTeam;
+        if (els.searchBtn) {
+          els.searchBtn.disabled = !hasTeam;
+          els.searchBtn.style.opacity = hasTeam ? '1' : '0.6';
+          els.searchBtn.style.cursor = hasTeam ? 'pointer' : 'not-allowed';
+        }
       }
 
       if (els.searchBtn) {
@@ -1804,6 +1826,7 @@
 
         if (selectedTeams.length === 0) {
           alert('Vui lòng chọn ít nhất 1 team!');
+          openTeamModal();
           return;
         }
         if (fromY > toY || (fromY === toY && fromQ > toQ)) {
@@ -1846,12 +1869,13 @@
       // ======================
       function renderResults(res) {
         els.resultsDiv.innerHTML = '';
+        CURRENT_SEARCH_KEYWORD = ''; // Reset từ khóa tìm kiếm khi tra cứu mới
+
         if (!res || !res.success) {
           const errDiv = document.createElement('div');
           errDiv.className = 'status error';
           errDiv.textContent = `❌ ${res?.error || 'Không có dữ liệu.'}`;
           els.resultsDiv.appendChild(errDiv);
-          els.searchBoxEl.classList.add('hidden');
           return;
         }
 
@@ -1881,12 +1905,8 @@
             <div class='status success'>
               ✅ Không có dữ liệu trong khoảng <strong>${fromY}Q${fromQ} → ${toY}Q${toQ}</strong>.
             </div>`;
-          els.searchBoxEl.classList.add('hidden');
           return;
         }
-
-        els.searchBoxEl.classList.remove('hidden');
-        if (els.resultSearchEl) els.resultSearchEl.value = '';
 
         // Ưu tiên active tab Tổng team nếu có dữ liệu, nếu không thì active tab Chi tiết
         if (teamCount > 0) {
@@ -1907,7 +1927,7 @@
         const teamCount = teamData.data ? teamData.data.length : 0;
         const caNhanCount = caNhanData.data ? caNhanData.data.length : 0;
 
-        // Header row chứa 2 Tab và Nút Xuất Excel
+        // Header row chứa 2 Tab (trái), Ô tìm kiếm (giữa - Vị trí 4) và Nút Xuất Excel (phải)
         const headerRow = document.createElement('div');
         headerRow.className = 'results-header-row';
 
@@ -1928,6 +1948,7 @@
 
         // Tab Chi tiết cá nhân
         const btnCaNhan = document.createElement('button');
+
         btnCaNhan.className = 'tab-btn' + (ACTIVE_RESULT_TAB === 'ca_nhan' ? ' active' : '');
         btnCaNhan.type = 'button';
         btnCaNhan.innerHTML = `<span>👤 Chi tiết cá nhân</span><span class="tab-count-badge">${caNhanCount}</span>`;
@@ -1942,7 +1963,19 @@
         tabsNav.appendChild(btnCaNhan);
         headerRow.appendChild(tabsNav);
 
-        // Nút Xuất Excel 2 Sheet
+        // 🔍 Vị trí 3 đưa vào Vị trí 4 (ở giữa Tabs và nút Xuất Excel)
+        const searchBox = document.createElement('div');
+        searchBox.className = 'search-box-inline';
+        searchBox.id = 'search-box';
+        searchBox.innerHTML = `
+          <div class="search-inner-wrap">
+            <input id="result-search" class="search-input" placeholder="🔎 Tìm trong kết quả (tên, mã, số tiền...)" value="${(CURRENT_SEARCH_KEYWORD || '').replace(/"/g, '&quot;')}" />
+            <button class="btn ghost btn-clear" type="button" onclick="clearSearch()" title="Xóa từ khóa tìm kiếm">Xóa</button>
+          </div>
+        `;
+        headerRow.appendChild(searchBox);
+
+        // Nút Xuất Excel 2 Sheet (bên phải)
         const exportBtn = document.createElement('button');
         exportBtn.className = 'export-excel-btn';
         exportBtn.type = 'button';
@@ -2018,20 +2051,21 @@
         wrapper.appendChild(table);
         els.resultsDiv.appendChild(wrapper);
 
-        // Gắn sự kiện tìm kiếm nếu chưa có hoặc kích hoạt lọc lại
-        if (els.resultSearchEl) {
-          if (!els.resultSearchEl.dataset.bound) {
-            els.resultSearchEl.addEventListener('input', filterResults);
-            els.resultSearchEl.dataset.bound = 'true';
-          }
-          if (els.resultSearchEl.value) {
+        // Gắn sự kiện tìm kiếm trên ô input mới tạo
+        const searchInput = searchBox.querySelector('#result-search');
+        if (searchInput) {
+          searchInput.addEventListener('input', (e) => {
+            CURRENT_SEARCH_KEYWORD = e.target.value;
+            filterResults();
+          });
+          if (CURRENT_SEARCH_KEYWORD) {
             filterResults();
           }
         }
       }
 
       function filterResults() {
-        const keyword = (els.resultSearchEl?.value || '').trim().toLowerCase();
+        const keyword = (CURRENT_SEARCH_KEYWORD || '').trim().toLowerCase();
         const rows = document.querySelectorAll('#result-table tbody tr');
         if (!rows.length) return;
         rows.forEach(r => {
@@ -2041,11 +2075,13 @@
       }
 
       function clearSearch() {
-        if (els.resultSearchEl) {
-          els.resultSearchEl.value = '';
-          filterResults();
-          els.resultSearchEl.focus();
+        CURRENT_SEARCH_KEYWORD = '';
+        const searchInput = document.getElementById('result-search');
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
         }
+        filterResults();
       }
       window.clearSearch = clearSearch;
 
