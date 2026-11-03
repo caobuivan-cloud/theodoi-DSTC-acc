@@ -1770,9 +1770,20 @@
       // Xác nhận lựa chọn và đóng modal
       function confirmTeamSelection() {
         const newTeamsKey = [...SELECTED_TEAMS].filter(Boolean).sort().join('|');
-        if (DATA_CACHE && DATA_CACHE.teamsKey && DATA_CACHE.teamsKey !== newTeamsKey) {
+        const isTeamChanged = DATA_CACHE.teamsKey && DATA_CACHE.teamsKey !== newTeamsKey;
+
+        // 1. Khi thay đổi team hoặc bỏ chọn, xóa ngay cache và xóa kết quả cũ để tránh hiểu nhầm
+        if (isTeamChanged || SELECTED_TEAMS.length === 0) {
           DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
+          CURRENT_RESULTS_DATA = null;
+          if (els.resultsDiv) {
+            els.resultsDiv.innerHTML = `
+              <div class="status" style="background:#f8fafc;color:var(--muted);border:1px dashed var(--border);text-align:center;padding:16px;border-radius:8px;margin-top:10px;">
+                📋 Danh sách team đã được cập nhật. Vui lòng bấm <strong>🔍 Tra cứu</strong> để nạp dữ liệu cho team mới.
+              </div>`;
+          }
         }
+
         updateDisplayText();
         closeTeamModal();
         toggleDateRange();
@@ -1953,6 +1964,47 @@
         }
       }
       window.handleSearch = handleSearch;
+
+      // ⚡ Tự động kích hoạt lọc ngay khi thay đổi Quý hoặc Năm
+      function handleTimeFilterAutoChange() {
+        if (!SELECTED_TEAMS || SELECTED_TEAMS.length === 0) return;
+
+        const fromQ = parseInt(document.getElementById('from-quarter')?.value || '0');
+        const fromY = parseInt(document.getElementById('from-year')?.value || '0');
+        const toQ = parseInt(document.getElementById('to-quarter')?.value || '0');
+        const toY = parseInt(document.getElementById('to-year')?.value || '0');
+
+        if (!fromY || !toY || fromY > toY || (fromY === toY && fromQ > toQ)) {
+          return;
+        }
+
+        const currentTeamsKey = [...SELECTED_TEAMS].filter(Boolean).sort().join('|');
+        const reqFromVal = toTimeVal(fromY, fromQ);
+        const reqToVal = toTimeVal(toY, toQ);
+
+        // 1. Nếu là Cache Hit (dải mới là tập con trong dải đã nạp) -> Lọc tức thì ngay tại Client (0ms)
+        if (DATA_CACHE.rawResult &&
+            DATA_CACHE.teamsKey === currentTeamsKey &&
+            reqFromVal >= DATA_CACHE.fromVal &&
+            reqToVal <= DATA_CACHE.toVal) {
+          
+          const localSliced = sliceCachedData(DATA_CACHE.rawResult, reqFromVal, reqToVal);
+          renderResults(localSliced);
+          return;
+        }
+
+        // 2. Nếu đã có dữ liệu trên bảng nhưng dải thời gian mới vượt ra ngoài cache -> Tự động nạp mới từ máy chủ
+        if (CURRENT_RESULTS_DATA || DATA_CACHE.rawResult) {
+          handleSearch(false);
+        }
+      }
+
+      ['from-quarter', 'from-year', 'to-quarter', 'to-year'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('change', handleTimeFilterAutoChange);
+        }
+      });
 
       // ======================
       // RENDER 2 TAB & FILTER
