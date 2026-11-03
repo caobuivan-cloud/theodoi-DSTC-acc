@@ -1094,6 +1094,7 @@
                   <input id="to-year" type="number" min="2020" value="2026" class="input compact-year" />
                 </div>
                 <button id="search-btn" class="btn btn-search">🔍 Tra cứu</button>
+                <button id="refresh-btn" class="btn btn-search ghost" title="Tải lại dữ liệu mới nhất từ máy chủ (Bỏ qua bộ nhớ đệm)" type="button" style="padding:0 12px !important;border:1px solid #cbd5e1" disabled>🔄 Làm mới</button>
               </div>
             </div>
           </div>
@@ -1295,6 +1296,7 @@
         typeEl: document.getElementById('type'),
         dateRangeEl: document.getElementById('date-range'),
         searchBtn: document.getElementById('search-btn'),
+        refreshBtn: document.getElementById('refresh-btn'),
         searchBoxEl: document.getElementById('search-box'),
         resultSearchEl: document.getElementById('result-search'),
         resultsDiv: document.getElementById('results'),
@@ -1540,6 +1542,7 @@
         CURRENT_EMAIL = '';
         ALLOWED_TEAMS = [];
         CURRENT_ROLE = 'User';
+        DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
 
         const headerAdminBtn = document.getElementById('header-admin-btn');
         const headerRoleBadge = document.getElementById('header-user-role-badge');
@@ -1652,6 +1655,7 @@
       // Khởi tạo team selector display
       function populateTeamSelect() {
         SELECTED_TEAMS = []; // Reset selected teams
+        DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
         updateDisplayText();
         toggleDateRange();
       }
@@ -1765,6 +1769,10 @@
 
       // Xác nhận lựa chọn và đóng modal
       function confirmTeamSelection() {
+        const newTeamsKey = [...SELECTED_TEAMS].filter(Boolean).sort().join('|');
+        if (DATA_CACHE && DATA_CACHE.teamsKey && DATA_CACHE.teamsKey !== newTeamsKey) {
+          DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
+        }
         updateDisplayText();
         closeTeamModal();
         toggleDateRange();
@@ -1790,6 +1798,51 @@
       let ACTIVE_RESULT_TAB = 'team'; // 'team' | 'ca_nhan'
       let CURRENT_SEARCH_KEYWORD = '';
 
+      // ⚡ Bộ nhớ đệm Client-Side Cache để lọc tức thì dải thời gian tập con
+      let DATA_CACHE = {
+        teamsKey: '',
+        fromVal: 0,
+        toVal: 0,
+        rawResult: null
+      };
+
+      function toTimeVal(year, quarter) {
+        return (parseInt(year) || 0) * 10 + (parseInt(quarter) || 0);
+      }
+
+      // Trích xuất dữ liệu từ cache cho dải Quý/Năm mới mà không cần gọi máy chủ
+      function sliceCachedData(cachedRawResult, fromVal, toVal) {
+        function filterSheet(sheetObj) {
+          if (!sheetObj || !sheetObj.data) return { headers: [], data: [] };
+          const headers = sheetObj.headers || [];
+
+          // Tìm vị trí cột Năm và Quý linh hoạt theo header
+          const yearIdx = headers.findIndex(h => /năm|year|^nam$/i.test(String(h || '').trim()));
+          const quarterIdx = headers.findIndex(h => /quý|quarter|^quy$/i.test(String(h || '').trim()));
+
+          if (yearIdx === -1 || quarterIdx === -1) {
+            return sheetObj;
+          }
+
+          const filteredRows = sheetObj.data.filter(row => {
+            const y = parseInt(row[yearIdx]) || 0;
+            const q = parseInt(row[quarterIdx]) || 0;
+            const rowVal = y * 10 + q;
+            return rowVal >= fromVal && rowVal <= toVal;
+          });
+
+          return { headers: headers, data: filteredRows };
+        }
+
+        return {
+          success: true,
+          isDualTab: true,
+          fromCache: true,
+          team: filterSheet(cachedRawResult.team),
+          ca_nhan: filterSheet(cachedRawResult.ca_nhan)
+        };
+      }
+
       function toggleDateRange() {
         const hasTeam = SELECTED_TEAMS.length > 0;
         if (els.searchBtn) {
@@ -1797,11 +1850,19 @@
           els.searchBtn.style.opacity = hasTeam ? '1' : '0.6';
           els.searchBtn.style.cursor = hasTeam ? 'pointer' : 'not-allowed';
         }
+        if (els.refreshBtn) {
+          els.refreshBtn.disabled = !hasTeam;
+          els.refreshBtn.style.opacity = hasTeam ? '1' : '0.6';
+          els.refreshBtn.style.cursor = hasTeam ? 'pointer' : 'not-allowed';
+        }
       }
 
       if (els.searchBtn) {
         els.searchBtn.removeEventListener('click', handleSearch);
-        els.searchBtn.addEventListener('click', handleSearch);
+        els.searchBtn.addEventListener('click', () => handleSearch(false));
+      }
+      if (els.refreshBtn) {
+        els.refreshBtn.addEventListener('click', () => handleSearch(true));
       }
 
       // Đóng modal khi click overlay
@@ -1816,7 +1877,7 @@
         });
       }
 
-      async function handleSearch() {
+      async function handleSearch(forceRefresh = false) {
         const selectedTeams = SELECTED_TEAMS.filter(v => v);
 
         const fromQ = parseInt(document.getElementById('from-quarter')?.value || '0');
@@ -1834,9 +1895,27 @@
           return;
         }
 
+        const currentTeamsKey = [...selectedTeams].sort().join('|');
+        const reqFromVal = toTimeVal(fromY, fromQ);
+        const reqToVal = toTimeVal(toY, toQ);
+
+        // ⚡ KIỂM TRA ĐIỀU KIỆN LỌC LOCAL (CACHE HIT)
+        // Nếu không bấm cưỡng bức làm mới, và cùng tập team, và khoảng thời gian mới là tập con của khoảng đã nạp
+        if (!forceRefresh &&
+            DATA_CACHE.rawResult &&
+            DATA_CACHE.teamsKey === currentTeamsKey &&
+            reqFromVal >= DATA_CACHE.fromVal &&
+            reqToVal <= DATA_CACHE.toVal) {
+          
+          const localSliced = sliceCachedData(DATA_CACHE.rawResult, reqFromVal, reqToVal);
+          renderResults(localSliced);
+          return;
+        }
+
         els.resultsDiv.innerHTML = '<div class="loading-center">Đang tra cứu dữ liệu (Tổng team & Chi tiết)... ⏳</div>';
         els.searchBtn.disabled = true;
         els.searchBtn.textContent = 'Đang tra...';
+        if (els.refreshBtn) els.refreshBtn.disabled = true;
 
         const payload = {
           type: 'both',
@@ -1850,6 +1929,15 @@
 
         try {
           const res = await callGAS('getFilteredData', payload);
+          if (res && res.success) {
+            // Lưu dữ liệu vào cache để tái sử dụng cho các lần lọc tập con tiếp theo
+            DATA_CACHE = {
+              teamsKey: currentTeamsKey,
+              fromVal: reqFromVal,
+              toVal: reqToVal,
+              rawResult: JSON.parse(JSON.stringify(res))
+            };
+          }
           renderResults(res);
         } catch (err) {
           console.error('[Tra cứu] Lỗi:', err);
@@ -1861,8 +1949,10 @@
         } finally {
           els.searchBtn.disabled = false;
           els.searchBtn.textContent = '🔍 Tra cứu';
+          if (els.refreshBtn) els.refreshBtn.disabled = false;
         }
       }
+      window.handleSearch = handleSearch;
 
       // ======================
       // RENDER 2 TAB & FILTER
@@ -1883,13 +1973,15 @@
         if (res.isDualTab || (res.team && res.ca_nhan)) {
           CURRENT_RESULTS_DATA = {
             team: res.team || { headers: [], data: [] },
-            ca_nhan: res.ca_nhan || { headers: [], data: [] }
+            ca_nhan: res.ca_nhan || { headers: [], data: [] },
+            fromCache: Boolean(res.fromCache)
           };
         } else {
           // Fallback cho single table nếu backend cũ trả về
           CURRENT_RESULTS_DATA = {
             team: { headers: res.headers || [], data: res.data || [] },
-            ca_nhan: { headers: [], data: [] }
+            ca_nhan: { headers: [], data: [] },
+            fromCache: Boolean(res.fromCache)
           };
         }
 
@@ -1961,6 +2053,15 @@
 
         tabsNav.appendChild(btnTeam);
         tabsNav.appendChild(btnCaNhan);
+
+        if (CURRENT_RESULTS_DATA.fromCache) {
+          const cacheBadge = document.createElement('div');
+          cacheBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#166534;background:#dcfce7;padding:3px 8px;border-radius:6px;border:1px solid #bbf7d0;white-space:nowrap;margin-left:4px;';
+          cacheBadge.title = 'Dữ liệu được lọc tức thì từ bộ nhớ đệm client mà không cần gọi máy chủ';
+          cacheBadge.innerHTML = `<span>⚡ Đã lọc nhanh (0ms)</span><a href="javascript:void(0)" onclick="handleSearch(true)" style="color:#15803d;text-decoration:underline;font-weight:600;margin-left:4px" title="Bấm để tải lại bản mới nhất từ máy chủ Google Sheets">Làm mới</a>`;
+          tabsNav.appendChild(cacheBadge);
+        }
+
         headerRow.appendChild(tabsNav);
 
         // 🔍 Vị trí 3 đưa vào Vị trí 4 (ở giữa Tabs và nút Xuất Excel)
