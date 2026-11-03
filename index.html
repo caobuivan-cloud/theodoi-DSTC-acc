@@ -1188,7 +1188,9 @@
         <div class="team-modal-footer">
           <div class="selection-info">
             <span>Đã chọn: <strong id="team-count">0</strong> team</span>
-            <span class="select-all-link" onclick="toggleSelectAllTeams()">Chọn tất cả</span>
+            <span class="select-all-link" onclick="selectAllTeams()">Chọn tất cả</span>
+            <span style="color:#cbd5e1;margin:0 4px">•</span>
+            <span class="select-all-link" style="color:var(--danger,#c5221f)" onclick="clearAllTeams()">Xóa tất cả</span>
           </div>
           <div class="btn-group">
             <button class="btn ghost" onclick="closeTeamModal()">Hủy</button>
@@ -1218,6 +1220,8 @@
           <div class="selection-info">
             <span>Đã chọn: <strong id="admin-team-count">0</strong> team</span>
             <span class="select-all-link" onclick="selectAllAdminTeams()">Chọn tất cả</span>
+            <span style="color:#cbd5e1;margin:0 4px">•</span>
+            <span class="select-all-link" style="color:var(--danger,#c5221f)" onclick="clearAdminTeamSelection()">Xóa tất cả</span>
           </div>
           <div class="btn-group">
             <button class="btn ghost" onclick="closeAdminTeamModal()">Hủy</button>
@@ -1756,14 +1760,27 @@
         els.teamCount.textContent = SELECTED_TEAMS.length;
       }
 
-      // Chọn/bỏ chọn tất cả
+      // Chọn tất cả các team
+      function selectAllTeams() {
+        SELECTED_TEAMS = [...ALLOWED_TEAMS];
+        renderTeamList(els.teamSearchInput.value);
+      }
+      window.selectAllTeams = selectAllTeams;
+
+      // Xóa tất cả các team đã chọn (Bỏ chọn tất cả)
+      function clearAllTeams() {
+        SELECTED_TEAMS = [];
+        renderTeamList(els.teamSearchInput.value);
+      }
+      window.clearAllTeams = clearAllTeams;
+
+      // Chọn/bỏ chọn tất cả (fallback)
       function toggleSelectAllTeams() {
         if (SELECTED_TEAMS.length === ALLOWED_TEAMS.length) {
-          SELECTED_TEAMS = [];
+          clearAllTeams();
         } else {
-          SELECTED_TEAMS = [...ALLOWED_TEAMS];
+          selectAllTeams();
         }
-        renderTeamList(els.teamSearchInput.value);
       }
       window.toggleSelectAllTeams = toggleSelectAllTeams;
 
@@ -1965,7 +1982,7 @@
       }
       window.handleSearch = handleSearch;
 
-      // ⚡ Tự động kích hoạt lọc ngay khi thay đổi Quý hoặc Năm
+      // ⚡ Tự động kích hoạt lọc ngay khi thay đổi Quý hoặc Năm (chỉ lọc khi dải mới nằm trong bộ nhớ đệm)
       function handleTimeFilterAutoChange() {
         if (!SELECTED_TEAMS || SELECTED_TEAMS.length === 0) return;
 
@@ -1982,7 +1999,7 @@
         const reqFromVal = toTimeVal(fromY, fromQ);
         const reqToVal = toTimeVal(toY, toQ);
 
-        // 1. Nếu là Cache Hit (dải mới là tập con trong dải đã nạp) -> Lọc tức thì ngay tại Client (0ms)
+        // Chỉ tự động lọc nếu là Cache Hit (dải mới là tập con trong dải đã nạp)
         if (DATA_CACHE.rawResult &&
             DATA_CACHE.teamsKey === currentTeamsKey &&
             reqFromVal >= DATA_CACHE.fromVal &&
@@ -1990,13 +2007,8 @@
           
           const localSliced = sliceCachedData(DATA_CACHE.rawResult, reqFromVal, reqToVal);
           renderResults(localSliced);
-          return;
         }
-
-        // 2. Nếu đã có dữ liệu trên bảng nhưng dải thời gian mới vượt ra ngoài cache -> Tự động nạp mới từ máy chủ
-        if (CURRENT_RESULTS_DATA || DATA_CACHE.rawResult) {
-          handleSearch(false);
-        }
+        // Nếu dải mới nằm ngoài phạm vi đã nạp: để người dùng chủ động bấm nút "Tra cứu"
       }
 
       ['from-quarter', 'from-year', 'to-quarter', 'to-year'].forEach(id => {
@@ -2105,15 +2117,6 @@
 
         tabsNav.appendChild(btnTeam);
         tabsNav.appendChild(btnCaNhan);
-
-        if (CURRENT_RESULTS_DATA.fromCache) {
-          const cacheBadge = document.createElement('div');
-          cacheBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#166534;background:#dcfce7;padding:3px 8px;border-radius:6px;border:1px solid #bbf7d0;white-space:nowrap;margin-left:4px;';
-          cacheBadge.title = 'Dữ liệu được lọc tức thì từ bộ nhớ đệm client mà không cần gọi máy chủ';
-          cacheBadge.innerHTML = `<span>⚡ Đã lọc nhanh (0ms)</span><a href="javascript:void(0)" onclick="handleSearch(true)" style="color:#15803d;text-decoration:underline;font-weight:600;margin-left:4px" title="Bấm để tải lại bản mới nhất từ máy chủ Google Sheets">Làm mới</a>`;
-          tabsNav.appendChild(cacheBadge);
-        }
-
         headerRow.appendChild(tabsNav);
 
         // 🔍 Vị trí 3 đưa vào Vị trí 4 (ở giữa Tabs và nút Xuất Excel)
