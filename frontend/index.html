@@ -460,6 +460,16 @@
       min-width: 820px;
       border-collapse: separate; /* Bắt buộc separate để sticky header không bị glitch */
       border-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      -webkit-font-feature-settings: "tnum" 1;
+      font-feature-settings: "tnum" 1;
+    }
+
+    .num-cell {
+      font-variant-numeric: tabular-nums;
+      -webkit-font-feature-settings: "tnum" 1;
+      font-feature-settings: "tnum" 1;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     }
 
     th,
@@ -884,6 +894,9 @@
     }
 
     .team-modal-footer .selection-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
       font-size: 13px;
       color: var(--muted);
     }
@@ -1187,10 +1200,12 @@
         </div>
         <div class="team-modal-footer">
           <div class="selection-info">
-            <span>Đã chọn: <strong id="team-count">0</strong> team</span>
-            <span class="select-all-link" onclick="selectAllTeams()">Chọn tất cả</span>
-            <span style="color:#cbd5e1;margin:0 4px">•</span>
-            <span class="select-all-link" style="color:var(--danger,#c5221f)" onclick="clearAllTeams()">Xóa tất cả</span>
+            <div>Đã chọn: <strong id="team-count">0</strong> team</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="select-all-link" style="margin-left:0" onclick="selectAllTeams()">Chọn tất cả</span>
+              <span style="color:#cbd5e1">•</span>
+              <span class="select-all-link" style="margin-left:0;color:var(--danger,#c5221f)" onclick="clearAllTeams()">Xóa tất cả</span>
+            </div>
           </div>
           <div class="btn-group">
             <button class="btn ghost" onclick="closeTeamModal()">Hủy</button>
@@ -1218,10 +1233,12 @@
         </div>
         <div class="team-modal-footer">
           <div class="selection-info">
-            <span>Đã chọn: <strong id="admin-team-count">0</strong> team</span>
-            <span class="select-all-link" onclick="selectAllAdminTeams()">Chọn tất cả</span>
-            <span style="color:#cbd5e1;margin:0 4px">•</span>
-            <span class="select-all-link" style="color:var(--danger,#c5221f)" onclick="clearAdminTeamSelection()">Xóa tất cả</span>
+            <div>Đã chọn: <strong id="admin-team-count">0</strong> team</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="select-all-link" style="margin-left:0" onclick="selectAllAdminTeams()">Chọn tất cả</span>
+              <span style="color:#cbd5e1">•</span>
+              <span class="select-all-link" style="margin-left:0;color:var(--danger,#c5221f)" onclick="clearAdminTeamSelection()">Xóa tất cả</span>
+            </div>
           </div>
           <div class="btn-group">
             <button class="btn ghost" onclick="closeAdminTeamModal()">Hủy</button>
@@ -1359,14 +1376,16 @@
         }, 1000);
       }
 
-      // ✅ Định dạng số theo chuẩn Việt Nam: 1.000.000,00
+      // ✅ Định dạng số theo chuẩn Việt Nam: làm tròn đến hàng đơn vị nguyên
       function formatNumberVND(num) {
-        if (typeof num !== 'number') return String(num || '');
-        const isInt = Number.isInteger(num);
+        if (num == null || num === '') return '';
+        let n = typeof num === 'number' ? num : parseFloat(String(num).replace(/,/g, ''));
+        if (isNaN(n)) return String(num || '').trim();
+        // Làm tròn đến hàng đơn vị theo yêu cầu
+        const rounded = Math.round(n);
         return new Intl.NumberFormat('vi-VN', {
-          minimumFractionDigits: isInt ? 0 : 2,
-          maximumFractionDigits: 2
-        }).format(num);
+          maximumFractionDigits: 0
+        }).format(rounded);
       }
 
       // ======================
@@ -2064,11 +2083,17 @@
           return;
         }
 
-        // Ưu tiên active tab Tổng team nếu có dữ liệu, nếu không thì active tab Chi tiết
-        if (teamCount > 0) {
-          ACTIVE_RESULT_TAB = 'team';
+        // Giữ nguyên tab đang xem của người dùng (không tự ý nhảy tab khi thay đổi bộ lọc)
+        if (ACTIVE_RESULT_TAB === 'ca_nhan') {
+          if (caNhanCount === 0 && teamCount > 0) {
+            ACTIVE_RESULT_TAB = 'team';
+          }
         } else {
-          ACTIVE_RESULT_TAB = 'ca_nhan';
+          if (teamCount === 0 && caNhanCount > 0) {
+            ACTIVE_RESULT_TAB = 'ca_nhan';
+          } else {
+            ACTIVE_RESULT_TAB = 'team';
+          }
         }
 
         renderActiveTabTable();
@@ -2188,11 +2213,15 @@
             const td = document.createElement('td');
             const header = headers[idx] || '';
 
+            const isNumCol = NUMERIC_COLUMNS.includes(header);
+            const isNumVal = typeof cell === 'number' || (typeof cell === 'string' && cell.trim() !== '' && !isNaN(Number(cell.replace(/,/g, ''))));
+
             if (cell == null || cell === '') {
               td.textContent = '';
-            } else if (NUMERIC_COLUMNS.includes(header) && typeof cell === 'number') {
+            } else if (isNumCol && isNumVal) {
               td.textContent = formatNumberVND(cell);
               td.style.textAlign = 'right';
+              td.className = 'num-cell';
             } else {
               td.textContent = String(cell).trim();
             }
