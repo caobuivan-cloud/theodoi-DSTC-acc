@@ -1094,7 +1094,7 @@
                   <input id="to-year" type="number" min="2020" value="2026" class="input compact-year" />
                 </div>
                 <button id="search-btn" class="btn btn-search">🔍 Tra cứu</button>
-                <button id="refresh-btn" class="btn btn-search ghost" title="Tải lại dữ liệu mới nhất từ máy chủ (Bỏ qua bộ nhớ đệm)" type="button" style="display:none;padding:0 12px !important;border:1px solid var(--border)">🔄 Làm mới</button>
+                <button id="refresh-btn" class="btn btn-search ghost" title="Tải lại dữ liệu mới nhất từ máy chủ (Bỏ qua bộ nhớ đệm)" type="button" style="padding:0 12px !important;border:1px solid #cbd5e1" disabled>🔄 Làm mới</button>
               </div>
             </div>
           </div>
@@ -1543,7 +1543,6 @@
         ALLOWED_TEAMS = [];
         CURRENT_ROLE = 'User';
         DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
-        if (els.refreshBtn) els.refreshBtn.style.display = 'none';
 
         const headerAdminBtn = document.getElementById('header-admin-btn');
         const headerRoleBadge = document.getElementById('header-user-role-badge');
@@ -1657,7 +1656,6 @@
       function populateTeamSelect() {
         SELECTED_TEAMS = []; // Reset selected teams
         DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
-        if (els.refreshBtn) els.refreshBtn.style.display = 'none';
         updateDisplayText();
         toggleDateRange();
       }
@@ -1773,7 +1771,7 @@
       function confirmTeamSelection() {
         const newTeamsKey = [...SELECTED_TEAMS].filter(Boolean).sort().join('|');
         if (DATA_CACHE && DATA_CACHE.teamsKey && DATA_CACHE.teamsKey !== newTeamsKey) {
-          if (els.refreshBtn) els.refreshBtn.style.display = 'none';
+          DATA_CACHE = { teamsKey: '', fromVal: 0, toVal: 0, rawResult: null };
         }
         updateDisplayText();
         closeTeamModal();
@@ -1851,6 +1849,11 @@
           els.searchBtn.disabled = !hasTeam;
           els.searchBtn.style.opacity = hasTeam ? '1' : '0.6';
           els.searchBtn.style.cursor = hasTeam ? 'pointer' : 'not-allowed';
+        }
+        if (els.refreshBtn) {
+          els.refreshBtn.disabled = !hasTeam;
+          els.refreshBtn.style.opacity = hasTeam ? '1' : '0.6';
+          els.refreshBtn.style.cursor = hasTeam ? 'pointer' : 'not-allowed';
         }
       }
 
@@ -1934,9 +1937,6 @@
               toVal: reqToVal,
               rawResult: JSON.parse(JSON.stringify(res))
             };
-            if (els.refreshBtn) {
-              els.refreshBtn.style.display = 'inline-flex';
-            }
           }
           renderResults(res);
         } catch (err) {
